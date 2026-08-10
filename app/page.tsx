@@ -202,7 +202,7 @@ export default function Home() {
     if (!searchQuery.trim()) return true;
 
     const query = searchQuery.toLowerCase().trim();
-    
+
     const matchTitle = fund.title?.toLowerCase().includes(query);
     const matchDescription = fund.description?.toLowerCase().includes(query);
     const matchAuthor = fund.author?.toLowerCase().includes(query);
@@ -368,11 +368,11 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 インタラクティブ円グラフ＆下部詳細表示エリア */}
+                    {/* 🍕 限界まで余白を削って超大型化した円グラフ */}
                     {currentChart === 'pie' ? (
-                      <div className="flex flex-col items-center justify-center py-5 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
-                        {/* 円グラフ本体（完全空白の中央穴） */}
-                        <div className="relative w-72 h-72 flex items-center justify-center">
+                      <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                        {/* 余白を削り円グラフ領域を拡大（w-80 h-80で枠目一杯） */}
+                        <div className="relative w-80 h-80 flex items-center justify-center">
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
@@ -387,16 +387,17 @@ export default function Home() {
                                   key={idx}
                                   cx="50"
                                   cy="50"
-                                  r="15.91549430918954"
+                                  r="22"
                                   fill="transparent"
                                   stroke={item.color}
-                                  strokeWidth={isHovered ? 16 : 13}
+                                  strokeWidth={isHovered ? 21 : 17}
                                   strokeDasharray={strokeDasharray}
                                   strokeDashoffset={strokeDashoffset}
-                                  className="transition-all duration-200 cursor-pointer origin-center"
+                                  className="transition-all duration-200 cursor-pointer"
                                   style={{
                                     opacity: activeHoveredItem && !isHovered ? 0.35 : 1,
-                                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                                    transformOrigin: '50px 50px',
+                                    transform: isHovered ? 'scale(1.04)' : 'scale(1)',
                                   }}
                                   onMouseEnter={(e) => {
                                     e.stopPropagation();
@@ -412,10 +413,10 @@ export default function Home() {
                           </svg>
                         </div>
 
-                        {/* 📍 円グラフの「下」に固定表示される選択中の銘柄情報エリア */}
-                        <div className="h-10 mt-2 flex items-center justify-center">
+                        {/* 📍 円グラフ直下の銘柄表示バッジ */}
+                        <div className="h-8 mt-1 flex items-center justify-center">
                           {activeHoveredItem ? (
-                            <div className="flex items-center gap-2 bg-white px-4 py-1.5 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm">
                               <span
                                 className="w-3 h-3 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: activeHoveredItem.color }}
@@ -432,7 +433,7 @@ export default function Home() {
                             </div>
                           ) : (
                             <span className="text-[11px] text-slate-400 font-medium">
-                              ※ グラフの各カラーに触れると銘柄が表示されます
+                              ※ グラフのカラーに触れると銘柄が表示されます
                             </span>
                           )}
                         </div>
@@ -449,7 +450,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* 銘柄凡例 */}
+                    {/* 凡例リスト */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {formattedItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
