@@ -24,12 +24,11 @@ type Fund = {
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
-// ⚾️ 💡 🚀 デモファンド3選
 const SAMPLE_FUNDS: Fund[] = [
   {
     id: '1',
     title: '大谷CM採用企業ポートフォリオ',
-    author: '大谷ファン',
+    author: '大谷ファン ◆abc12345',
     period: '長期',
     funny_count: 42,
     description: '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
@@ -56,7 +55,7 @@ const SAMPLE_FUNDS: Fund[] = [
   {
     id: '3',
     title: 'オルカン一括＆暗号資産スパイス',
-    author: '堅実チャレンジャー',
+    author: '堅実チャレンジャー ◆xyz98765',
     period: '中期',
     funny_count: 15,
     description: '王道の「eMAXIS Slim 全世界株式」で超堅実に土台を固めつつ、爆発力のあるビットコインを15%だけスパイスとして投入したハイブリッド構成。',
@@ -71,7 +70,6 @@ type TabType = 'popular' | 'trending' | 'weekly';
 
 function RankingList({ funds }: { funds: Fund[] }) {
   const [activeTab, setActiveTab] = useState<TabType>('popular');
-
   const displayFunds = funds.length > 0 ? funds : SAMPLE_FUNDS;
 
   return (
@@ -137,10 +135,12 @@ function RankingList({ funds }: { funds: Fund[] }) {
 export default function Home() {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState('すべて');
-  const [searchQuery, setSearchQuery] = useState(''); // 🔍 検索キーワード用の状態
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   const [chartTypes, setChartTypes] = useState<Record<string, 'pie' | 'bar'>>({});
+  // 🍕 インタラクティブ円グラフ用：ファンドごとにホバー中の銘柄を保持
+  const [hoveredItems, setHoveredItems] = useState<Record<string, FundItem | null>>({});
 
   useEffect(() => {
     async function fetchFunds() {
@@ -189,25 +189,25 @@ export default function Home() {
     setChartTypes((prev) => ({ ...prev, [fundId]: type }));
   };
 
-  // 🔍 期間フィルター ＋ キーワード＆ユーザー名検索フィルター
+  // 👤 ユーザー名クリック時に検索枠にセットして絞り込む処理
+  const handleAuthorClick = (authorName: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSearchQuery(authorName);
+  };
+
   const filteredFunds = funds.filter((fund) => {
-    // 1. 期間フィルター
     if (selectedPeriod !== 'すべて' && fund.period !== selectedPeriod) {
       return false;
     }
 
-    // 2. 検索フィルター（未入力の場合は全て表示）
     if (!searchQuery.trim()) return true;
 
     const query = searchQuery.toLowerCase().trim();
     
-    // タイトル検索
     const matchTitle = fund.title?.toLowerCase().includes(query);
-    // 説明文検索
     const matchDescription = fund.description?.toLowerCase().includes(query);
-    // ユーザー名（投稿者名）検索
     const matchAuthor = fund.author?.toLowerCase().includes(query);
-    // 構成銘柄名検索
     const matchItems = fund.items?.some((item) =>
       item.name?.toLowerCase().includes(query)
     );
@@ -229,14 +229,38 @@ export default function Home() {
 
       <main className="max-w-xl mx-auto px-4 pt-4 space-y-6">
         <section className="space-y-3">
-          {/* 🔍 検索入力フォーム */}
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="🔍 キーワード、銘柄、ユーザー名（@〜）で検索..."
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm"
-          />
+          {/* 🔍 検索フォーム */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="🔍 キーワード、銘柄、ユーザー名（@〜）で検索..."
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm pr-10"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* 👤 ユーザー名で絞り込み中のバナー表示 */}
+          {searchQuery && (
+            <div className="flex justify-between items-center bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-lg text-xs text-indigo-700 font-medium">
+              <span>「<strong>{searchQuery}</strong>」で検索中</span>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-indigo-500 underline hover:text-indigo-800 ml-2"
+              >
+                クリア
+              </button>
+            </div>
+          )}
+
           <div className="flex gap-2 text-sm overflow-x-auto pb-1">
             {['すべて', '短期', '中期', '長期'].map((period) => (
               <button
@@ -272,6 +296,7 @@ export default function Home() {
           ) : (
             filteredFunds.map((fund) => {
               const currentChart = chartTypes[fund.id] || 'pie';
+              const activeHoveredItem = hoveredItems[fund.id] || null;
 
               const itemsList = fund.items || [];
               const calculatedTotal = itemsList.reduce((sum, item) => {
@@ -302,8 +327,17 @@ export default function Home() {
                   href={`/fund/${fund.id}`}
                   className="block bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition active:scale-98"
                 >
+                  {/* 作成者（ユーザー名クリックで絞り込み）＆ 期間 */}
                   <div className="flex justify-between items-center text-xs text-slate-500">
-                    <span className="font-medium text-slate-700">@{fund.author || '匿名'}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleAuthorClick(fund.author || '匿名', e)}
+                      className="font-bold text-slate-700 hover:text-indigo-600 hover:underline flex items-center gap-1 transition"
+                      title="このユーザーの投稿一覧を見る"
+                    >
+                      <span>@{fund.author || '匿名'}</span>
+                      <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.2 rounded">投稿一覧 🔍</span>
+                    </button>
                     <span className="bg-indigo-50 text-indigo-600 font-semibold px-2.5 py-0.5 rounded-full">
                       {fund.period}
                     </span>
@@ -346,16 +380,18 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* グラフ部分（サイズ拡大: w-48 h-48） */}
+                    {/* 🍕 動的インタラクティブ円グラフ */}
                     {currentChart === 'pie' ? (
                       <div className="flex justify-center items-center py-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="relative w-48 h-48">
+                        <div className="relative w-52 h-56 flex items-center justify-center">
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
                               const strokeDasharray = `${item.ratio} ${100 - item.ratio}`;
                               const strokeDashoffset = -cumulativeAngle;
                               cumulativeAngle += item.ratio;
+
+                              const isHovered = activeHoveredItem?.name === item.name;
 
                               return (
                                 <circle
@@ -365,14 +401,52 @@ export default function Home() {
                                   r="15.91549430918954"
                                   fill="transparent"
                                   stroke={item.color}
-                                  strokeWidth="11"
+                                  strokeWidth={isHovered ? 14 : 11}
                                   strokeDasharray={strokeDasharray}
                                   strokeDashoffset={strokeDashoffset}
-                                  className="transition-all duration-300"
+                                  className="transition-all duration-200 cursor-pointer origin-center"
+                                  style={{
+                                    opacity: activeHoveredItem && !isHovered ? 0.4 : 1,
+                                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.stopPropagation();
+                                    setHoveredItems((prev) => ({ ...prev, [fund.id]: item }));
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.stopPropagation();
+                                    setHoveredItems((prev) => ({ ...prev, [fund.id]: null }));
+                                  }}
                                 />
                               );
                             })}
                           </svg>
+
+                          {/* 円グラフ中央の浮き出るラベル表示 */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-4">
+                            {activeHoveredItem ? (
+                              <div className="animate-fade-in space-y-0.5">
+                                <span
+                                  className="text-xs font-black truncate max-w-[120px] block"
+                                  style={{ color: activeHoveredItem.color }}
+                                >
+                                  {activeHoveredItem.name}
+                                </span>
+                                <span className="text-base font-extrabold text-slate-800 block">
+                                  {activeHoveredItem.ratio}%
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="space-y-0.5">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                                  HOVER
+                                </span>
+                                <span className="text-[11px] font-medium text-slate-500 block">
+                                  触れて確認 👆
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -387,19 +461,35 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* 銘柄凡例 */}
+                    {/* 銘柄凡例（ホバー時に連動して浮き上がる効果） */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-600 pt-1">
-                      {formattedItems.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <span className="font-medium text-slate-700">
-                            {item.name} ({item.ratio}%)
-                          </span>
-                        </div>
-                      ))}
+                      {formattedItems.map((item, idx) => {
+                        const isHovered = activeHoveredItem?.name === item.name;
+                        return (
+                          <div
+                            key={idx}
+                            onMouseEnter={() =>
+                              setHoveredItems((prev) => ({ ...prev, [fund.id]: item }))
+                            }
+                            onMouseLeave={() =>
+                              setHoveredItems((prev) => ({ ...prev, [fund.id]: null }))
+                            }
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md border transition cursor-pointer ${
+                              isHovered
+                                ? 'bg-indigo-50 border-indigo-200 shadow-xs scale-105'
+                                : 'bg-slate-50 border-slate-100'
+                            }`}
+                          >
+                            <span
+                              className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"
+                              style={{ backgroundColor: item.color }}
+                            />
+                            <span className={`font-medium ${isHovered ? 'text-indigo-900 font-bold' : 'text-slate-700'}`}>
+                              {item.name} ({item.ratio}%)
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
