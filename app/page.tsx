@@ -139,7 +139,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   const [chartTypes, setChartTypes] = useState<Record<string, 'pie' | 'bar'>>({});
-  // 🍕 インタラクティブ円グラフ用：ファンドごとにホバー中の銘柄を保持
   const [hoveredItems, setHoveredItems] = useState<Record<string, FundItem | null>>({});
 
   useEffect(() => {
@@ -189,7 +188,6 @@ export default function Home() {
     setChartTypes((prev) => ({ ...prev, [fundId]: type }));
   };
 
-  // 👤 ユーザー名クリック時に検索枠にセットして絞り込む処理
   const handleAuthorClick = (authorName: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -217,19 +215,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex justify-between items-center">
+      {/* ✂️ ログインボタンを削除したシンプルヘッダー */}
+      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <h1 className="text-xl font-bold text-indigo-600">俺ファンド</h1>
-        <a
-          href="/api/auth/signin"
-          className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-full font-medium hover:bg-indigo-700 transition"
-        >
-          ログイン
-        </a>
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-4 space-y-6">
         <section className="space-y-3">
-          {/* 🔍 検索フォーム */}
           <div className="relative">
             <input
               type="text"
@@ -248,7 +240,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* 👤 ユーザー名で絞り込み中のバナー表示 */}
           {searchQuery && (
             <div className="flex justify-between items-center bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-lg text-xs text-indigo-700 font-medium">
               <span>「<strong>{searchQuery}</strong>」で検索中</span>
@@ -327,7 +318,6 @@ export default function Home() {
                   href={`/fund/${fund.id}`}
                   className="block bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition active:scale-98"
                 >
-                  {/* 作成者（ユーザー名クリックで絞り込み）＆ 期間 */}
                   <div className="flex justify-between items-center text-xs text-slate-500">
                     <button
                       type="button"
@@ -348,7 +338,6 @@ export default function Home() {
                     <p className="text-xs text-slate-600 mt-1 line-clamp-2">{fund.description}</p>
                   </div>
 
-                  {/* 📊 ポートフォリオビジュアル表示領域 */}
                   <div className="space-y-3 pt-1">
                     <div className="flex justify-between items-center">
                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -380,10 +369,11 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 動的インタラクティブ円グラフ */}
+                    {/* 🍕 超特大化インタラクティブ円グラフ */}
                     {currentChart === 'pie' ? (
-                      <div className="flex justify-center items-center py-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="relative w-52 h-56 flex items-center justify-center">
+                      <div className="flex justify-center items-center py-6 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                        {/* 巨大化した円グラフ枠（w-80 h-80 / 320px相当） */}
+                        <div className="relative w-80 h-80 flex items-center justify-center">
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
@@ -401,13 +391,13 @@ export default function Home() {
                                   r="15.91549430918954"
                                   fill="transparent"
                                   stroke={item.color}
-                                  strokeWidth={isHovered ? 14 : 11}
+                                  strokeWidth={isHovered ? 16 : 13}
                                   strokeDasharray={strokeDasharray}
                                   strokeDashoffset={strokeDashoffset}
                                   className="transition-all duration-200 cursor-pointer origin-center"
                                   style={{
-                                    opacity: activeHoveredItem && !isHovered ? 0.4 : 1,
-                                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                                    opacity: activeHoveredItem && !isHovered ? 0.35 : 1,
+                                    transform: isHovered ? 'scale(1.06)' : 'scale(1)',
                                   }}
                                   onMouseEnter={(e) => {
                                     e.stopPropagation();
@@ -422,27 +412,18 @@ export default function Home() {
                             })}
                           </svg>
 
-                          {/* 円グラフ中央の浮き出るラベル表示 */}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-4">
-                            {activeHoveredItem ? (
-                              <div className="animate-fade-in space-y-0.5">
+                          {/* 円グラフ中央：ホバー時のみテキストを表示（「触れて確認」は削除） */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-6">
+                            {activeHoveredItem && (
+                              <div className="animate-fade-in space-y-1 bg-white/90 backdrop-blur-xs px-3 py-2 rounded-xl shadow-xs">
                                 <span
-                                  className="text-xs font-black truncate max-w-[120px] block"
+                                  className="text-sm font-black truncate max-w-[160px] block"
                                   style={{ color: activeHoveredItem.color }}
                                 >
                                   {activeHoveredItem.name}
                                 </span>
-                                <span className="text-base font-extrabold text-slate-800 block">
+                                <span className="text-xl font-black text-slate-800 block">
                                   {activeHoveredItem.ratio}%
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="space-y-0.5">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                                  HOVER
-                                </span>
-                                <span className="text-[11px] font-medium text-slate-500 block">
-                                  触れて確認 👆
                                 </span>
                               </div>
                             )}
@@ -450,7 +431,7 @@ export default function Home() {
                         </div>
                       </div>
                     ) : (
-                      <div className="h-5 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner my-2">
+                      <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner my-2">
                         {formattedItems.map((item, idx) => (
                           <div
                             key={idx}
@@ -461,7 +442,6 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* 銘柄凡例（ホバー時に連動して浮き上がる効果） */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {formattedItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
@@ -474,7 +454,7 @@ export default function Home() {
                             onMouseLeave={() =>
                               setHoveredItems((prev) => ({ ...prev, [fund.id]: null }))
                             }
-                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md border transition cursor-pointer ${
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition cursor-pointer ${
                               isHovered
                                 ? 'bg-indigo-50 border-indigo-200 shadow-xs scale-105'
                                 : 'bg-slate-50 border-slate-100'
@@ -509,7 +489,6 @@ export default function Home() {
           )}
         </section>
 
-        {/* ⚠️ 投資免責事項（注釈） */}
         <footer className="pt-8 pb-4 text-center text-[11px] text-slate-400 space-y-2 border-t border-slate-200">
           <p className="font-bold text-slate-500">【免責事項・ご注意】</p>
           <p className="leading-relaxed">
