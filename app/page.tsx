@@ -289,17 +289,18 @@ export default function Home() {
               const activeHoveredItem = hoveredItems[fund.id] || null;
 
               const itemsList = fund.items || [];
-              
-              // 🔄【改善1】同じ名前の銘柄を自動的に集計・統合する処理
-              const mergedMap = new Map<string, { name: string; ratio: number; color: string }>();
-              
+
+              // 🔄【同一銘柄の自動合算処理】銘柄名ごとに比率を足し合わせて統合する
+              const mergedGroup: { name: string; ratio: number; color: string }[] = [];
+              const nameIndexMap = new Map<string, number>();
+
               const calculatedTotal = itemsList.reduce((sum, item) => {
                 const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
                 return sum + itemAmt;
               }, 0);
 
               itemsList.forEach((item, idx) => {
-                const name = item.name || `銘柄${idx + 1}`;
+                const name = (item.name || `銘柄${idx + 1}`).trim();
                 const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
                 let itemRatio = Number(item.ratio || 0);
 
@@ -307,19 +308,20 @@ export default function Home() {
                   itemRatio = Math.round((itemAmt / calculatedTotal) * 100);
                 }
 
-                if (mergedMap.has(name)) {
-                  const existing = mergedMap.get(name)!;
-                  existing.ratio += itemRatio;
+                if (nameIndexMap.has(name)) {
+                  const targetIdx = nameIndexMap.get(name)!;
+                  mergedGroup[targetIdx].ratio += itemRatio;
                 } else {
-                  mergedMap.set(name, {
+                  nameIndexMap.set(name, mergedGroup.length);
+                  mergedGroup.push({
                     name,
                     ratio: itemRatio,
-                    color: item.color || DEFAULT_COLORS[mergedMap.size % DEFAULT_COLORS.length],
+                    color: item.color || DEFAULT_COLORS[mergedGroup.length % DEFAULT_COLORS.length],
                   });
                 }
               });
 
-              const formattedItems = Array.from(mergedMap.values());
+              const formattedItems = mergedGroup;
               let cumulativeAngle = 0;
 
               return (
@@ -379,11 +381,11 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 インタラクティブ円グラフ */}
+                    {/* 🍕 インタラクティブ円グラフ (12時始点 & ドーナツ穴カバー) */}
                     {currentChart === 'pie' ? (
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                         <div className="relative w-80 h-80 flex items-center justify-center">
-                          {/* 🔄【改善2】12時（真上）始点固定 (-rotate-90) */}
+                          {/* -rotate-90 で12時（真上）始点に固定 */}
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
@@ -422,7 +424,7 @@ export default function Home() {
                               );
                             })}
 
-                            {/* 🔄【改善3】ドーナツ穴中央の透明カバー（穴に乗った時はホバー解除） */}
+                            {/* ドーナツ穴の中央カバー（穴の上では何も反応しないように保持） */}
                             <circle
                               cx="50"
                               cy="50"
@@ -437,7 +439,7 @@ export default function Home() {
                           </svg>
                         </div>
 
-                        {/* 📍 銘柄表示バッジ（未ホバー時は何も表示しない） */}
+                        {/* 📍 銘柄表示バッジ（未ホバー時は完全空白） */}
                         <div className="h-8 mt-1 flex items-center justify-center">
                           {activeHoveredItem && (
                             <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
