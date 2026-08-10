@@ -289,12 +289,17 @@ export default function Home() {
               const activeHoveredItem = hoveredItems[fund.id] || null;
 
               const itemsList = fund.items || [];
+              
+              // 🔄【改善1】同じ名前の銘柄を自動的に集計・統合する処理
+              const mergedMap = new Map<string, { name: string; ratio: number; color: string }>();
+              
               const calculatedTotal = itemsList.reduce((sum, item) => {
                 const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
                 return sum + itemAmt;
               }, 0);
 
-              const formattedItems = itemsList.map((item, idx) => {
+              itemsList.forEach((item, idx) => {
+                const name = item.name || `銘柄${idx + 1}`;
                 const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
                 let itemRatio = Number(item.ratio || 0);
 
@@ -302,13 +307,19 @@ export default function Home() {
                   itemRatio = Math.round((itemAmt / calculatedTotal) * 100);
                 }
 
-                return {
-                  name: item.name || `銘柄${idx + 1}`,
-                  ratio: itemRatio,
-                  color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
-                };
+                if (mergedMap.has(name)) {
+                  const existing = mergedMap.get(name)!;
+                  existing.ratio += itemRatio;
+                } else {
+                  mergedMap.set(name, {
+                    name,
+                    ratio: itemRatio,
+                    color: item.color || DEFAULT_COLORS[mergedMap.size % DEFAULT_COLORS.length],
+                  });
+                }
               });
 
+              const formattedItems = Array.from(mergedMap.values());
               let cumulativeAngle = 0;
 
               return (
@@ -368,11 +379,11 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 限界まで余白を削って超大型化した円グラフ */}
+                    {/* 🍕 インタラクティブ円グラフ */}
                     {currentChart === 'pie' ? (
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
-                        {/* 余白を削り円グラフ領域を拡大（w-80 h-80で枠目一杯） */}
                         <div className="relative w-80 h-80 flex items-center justify-center">
+                          {/* 🔄【改善2】12時（真上）始点固定 (-rotate-90) */}
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
@@ -410,13 +421,26 @@ export default function Home() {
                                 />
                               );
                             })}
+
+                            {/* 🔄【改善3】ドーナツ穴中央の透明カバー（穴に乗った時はホバー解除） */}
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r="13.5"
+                              fill="transparent"
+                              className="cursor-default"
+                              onMouseEnter={(e) => {
+                                e.stopPropagation();
+                                setHoveredItems((prev) => ({ ...prev, [fund.id]: null }));
+                              }}
+                            />
                           </svg>
                         </div>
 
-                        {/* 📍 円グラフ直下の銘柄表示バッジ */}
+                        {/* 📍 銘柄表示バッジ（未ホバー時は何も表示しない） */}
                         <div className="h-8 mt-1 flex items-center justify-center">
-                          {activeHoveredItem ? (
-                            <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm">
+                          {activeHoveredItem && (
+                            <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
                               <span
                                 className="w-3 h-3 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: activeHoveredItem.color }}
@@ -431,10 +455,6 @@ export default function Home() {
                                 {activeHoveredItem.ratio}%
                               </span>
                             </div>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 font-medium">
-                              ※ グラフのカラーに触れると銘柄が表示されます
-                            </span>
                           )}
                         </div>
                       </div>
