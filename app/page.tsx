@@ -215,7 +215,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
-      {/* ✂️ ログインボタンを削除したシンプルヘッダー */}
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <h1 className="text-xl font-bold text-indigo-600">俺ファンド</h1>
       </header>
@@ -369,11 +368,11 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 超特大化インタラクティブ円グラフ */}
+                    {/* 🍕 インタラクティブ円グラフ＆下部詳細表示エリア */}
                     {currentChart === 'pie' ? (
-                      <div className="flex justify-center items-center py-6 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
-                        {/* 巨大化した円グラフ枠（w-80 h-80 / 320px相当） */}
-                        <div className="relative w-80 h-80 flex items-center justify-center">
+                      <div className="flex flex-col items-center justify-center py-5 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                        {/* 円グラフ本体（完全空白の中央穴） */}
+                        <div className="relative w-72 h-72 flex items-center justify-center">
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
@@ -397,7 +396,7 @@ export default function Home() {
                                   className="transition-all duration-200 cursor-pointer origin-center"
                                   style={{
                                     opacity: activeHoveredItem && !isHovered ? 0.35 : 1,
-                                    transform: isHovered ? 'scale(1.06)' : 'scale(1)',
+                                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
                                   }}
                                   onMouseEnter={(e) => {
                                     e.stopPropagation();
@@ -411,23 +410,31 @@ export default function Home() {
                               );
                             })}
                           </svg>
+                        </div>
 
-                          {/* 円グラフ中央：ホバー時のみテキストを表示（「触れて確認」は削除） */}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-6">
-                            {activeHoveredItem && (
-                              <div className="animate-fade-in space-y-1 bg-white/90 backdrop-blur-xs px-3 py-2 rounded-xl shadow-xs">
-                                <span
-                                  className="text-sm font-black truncate max-w-[160px] block"
-                                  style={{ color: activeHoveredItem.color }}
-                                >
-                                  {activeHoveredItem.name}
-                                </span>
-                                <span className="text-xl font-black text-slate-800 block">
-                                  {activeHoveredItem.ratio}%
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                        {/* 📍 円グラフの「下」に固定表示される選択中の銘柄情報エリア */}
+                        <div className="h-10 mt-2 flex items-center justify-center">
+                          {activeHoveredItem ? (
+                            <div className="flex items-center gap-2 bg-white px-4 py-1.5 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
+                              <span
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: activeHoveredItem.color }}
+                              />
+                              <span className="text-xs font-bold text-slate-800">
+                                {activeHoveredItem.name}
+                              </span>
+                              <span
+                                className="text-xs font-black px-2 py-0.5 rounded-md text-white"
+                                style={{ backgroundColor: activeHoveredItem.color }}
+                              >
+                                {activeHoveredItem.ratio}%
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              ※ グラフの各カラーに触れると銘柄が表示されます
+                            </span>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -442,6 +449,7 @@ export default function Home() {
                       </div>
                     )}
 
+                    {/* 銘柄凡例 */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {formattedItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
