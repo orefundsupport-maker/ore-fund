@@ -72,7 +72,6 @@ const SAMPLE_FUNDS: Fund[] = [
 
 type TabType = 'popular' | 'trending' | 'weekly';
 
-// 日時フォーマット関数 (例: 2026/08/11 12:14)
 function formatDate(dateString?: string): string {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -149,7 +148,6 @@ function RankingList({ funds }: { funds: Fund[] }) {
   );
 }
 
-// ドーナツ扇形パス生成関数（12時始点）
 function getDonutSlicePath(
   cx: number,
   cy: number,
@@ -265,8 +263,15 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
+      {/* 🏠 左上ロゴボタンでトップページへ戻るリンクを適用 */}
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
-        <h1 className="text-xl font-bold text-indigo-600">俺ファンド</h1>
+        <a
+          href="/"
+          className="text-xl font-bold text-indigo-600 hover:opacity-80 transition cursor-pointer"
+          title="トップページへ戻る"
+        >
+          俺ファンド
+        </a>
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-4 space-y-6">
@@ -340,7 +345,6 @@ export default function Home() {
 
               const itemsList = fund.items || [];
 
-              // 同一銘柄の自動合算
               const mergedGroup: { name: string; ratio: number; color: string }[] = [];
               const nameIndexMap = new Map<string, number>();
 
@@ -398,7 +402,6 @@ export default function Home() {
                         <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.2 rounded">投稿一覧 🔍</span>
                       </button>
 
-                      {/* 🕒 投稿日時の表示 */}
                       {formattedCreatedDate && (
                         <span className="text-[11px] text-slate-400">
                           ・ {formattedCreatedDate}
