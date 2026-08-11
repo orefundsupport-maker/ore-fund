@@ -132,6 +132,40 @@ function RankingList({ funds }: { funds: Fund[] }) {
   );
 }
 
+// 📐 正確なドーナツ扇形パスを生成する関数（12時始点）
+function getDonutSlicePath(
+  cx: number,
+  cy: number,
+  rOuter: number,
+  rInner: number,
+  startAngleDeg: number,
+  endAngleDeg: number
+) {
+  // 12時（真上）を0度とし、時計回りに回転
+  const startRad = ((startAngleDeg - 90) * Math.PI) / 180;
+  const endRad = ((endAngleDeg - 90) * Math.PI) / 180;
+
+  const x1Outer = cx + rOuter * Math.cos(startRad);
+  const y1Outer = cy + rOuter * Math.sin(startRad);
+  const x2Outer = cx + rOuter * Math.cos(endRad);
+  const y2Outer = cy + rOuter * Math.sin(endRad);
+
+  const x1Inner = cx + rInner * Math.cos(endRad);
+  const y1Inner = cy + rInner * Math.sin(endRad);
+  const x2Inner = cx + rInner * Math.cos(startRad);
+  const y2Inner = cy + rInner * Math.sin(startRad);
+
+  const largeArcFlag = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
+
+  return [
+    `M ${x1Outer} ${y1Outer}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArcFlag} 1 ${x2Outer} ${y2Outer}`,
+    `L ${x1Inner} ${y1Inner}`,
+    `A ${rInner} ${rInner} 0 ${largeArcFlag} 0 ${x2Inner} ${y2Inner}`,
+    'Z',
+  ].join(' ');
+}
+
 export default function Home() {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState('すべて');
@@ -290,7 +324,7 @@ export default function Home() {
 
               const itemsList = fund.items || [];
 
-              // 🔄【同一銘柄の自動合算処理】銘柄名ごとに比率を足し合わせて統合する
+              // 🔄【同一銘柄の自動合算処理】銘柄名ごとに完全統合
               const mergedGroup: { name: string; ratio: number; color: string }[] = [];
               const nameIndexMap = new Map<string, number>();
 
@@ -321,8 +355,14 @@ export default function Home() {
                 }
               });
 
-              const formattedItems = mergedGroup;
-              let cumulativeAngle = 0;
+              // 全体比率の合計を正規化（合計100%に調整）
+              const totalRatioSum = mergedGroup.reduce((s, i) => s + i.ratio, 0) || 1;
+              const formattedItems = mergedGroup.map((i) => ({
+                ...i,
+                ratio: Math.round((i.ratio / totalRatioSum) * 100) || i.ratio,
+              }));
+
+              let currentAngle = 0;
 
               return (
                 <a
@@ -381,36 +421,38 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 インタラクティブ円グラフ (12時始点 & ドーナツ穴カバー) */}
+                    {/* 🍕 正確なPath描画による12時始点ドーナツグラフ */}
                     {currentChart === 'pie' ? (
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                         <div className="relative w-80 h-80 flex items-center justify-center">
-                          {/* -rotate-90 で12時（真上）始点に固定 */}
-                          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                          <svg viewBox="0 0 200 200" className="w-full h-full">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
-                              const strokeDasharray = `${item.ratio} ${100 - item.ratio}`;
-                              const strokeDashoffset = -cumulativeAngle;
-                              cumulativeAngle += item.ratio;
+                              
+                              const sliceAngle = (item.ratio / 100) * 360;
+                              // ほぼ100%の場合は円が消えないよう359.99度に制限
+                              const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
+                              
+                              const startAngle = currentAngle;
+                              const endAngle = currentAngle + safeAngle;
+                              currentAngle += safeAngle;
 
                               const isHovered = activeHoveredItem?.name === item.name;
+                              
+                              // 外半径と内半径の設定（ホバー時は少し膨らむ）
+                              const outerR = isHovered ? 92 : 86;
+                              const innerR = 48;
+
+                              const pathData = getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle);
 
                               return (
-                                <circle
+                                <path
                                   key={idx}
-                                  cx="50"
-                                  cy="50"
-                                  r="22"
-                                  fill="transparent"
-                                  stroke={item.color}
-                                  strokeWidth={isHovered ? 21 : 17}
-                                  strokeDasharray={strokeDasharray}
-                                  strokeDashoffset={strokeDashoffset}
+                                  d={pathData}
+                                  fill={item.color}
                                   className="transition-all duration-200 cursor-pointer"
                                   style={{
                                     opacity: activeHoveredItem && !isHovered ? 0.35 : 1,
-                                    transformOrigin: '50px 50px',
-                                    transform: isHovered ? 'scale(1.04)' : 'scale(1)',
                                   }}
                                   onMouseEnter={(e) => {
                                     e.stopPropagation();
@@ -424,11 +466,11 @@ export default function Home() {
                               );
                             })}
 
-                            {/* ドーナツ穴の中央カバー（穴の上では何も反応しないように保持） */}
+                            {/* 中央穴カバー（真ん中では反応しない設定） */}
                             <circle
-                              cx="50"
-                              cy="50"
-                              r="13.5"
+                              cx="100"
+                              cy="100"
+                              r="47"
                               fill="transparent"
                               className="cursor-default"
                               onMouseEnter={(e) => {
@@ -439,7 +481,7 @@ export default function Home() {
                           </svg>
                         </div>
 
-                        {/* 📍 銘柄表示バッジ（未ホバー時は完全空白） */}
+                        {/* 📍 銘柄表示バッジ（未ホバー時は何も表示しない） */}
                         <div className="h-8 mt-1 flex items-center justify-center">
                           {activeHoveredItem && (
                             <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
