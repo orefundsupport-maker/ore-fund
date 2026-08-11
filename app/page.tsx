@@ -19,6 +19,7 @@ type Fund = {
   period: string;
   funny_count: number;
   description: string;
+  created_at?: string;
   items: FundItem[];
 };
 
@@ -31,6 +32,7 @@ const SAMPLE_FUNDS: Fund[] = [
     author: '大谷ファン ◆abc12345',
     period: '長期',
     funny_count: 42,
+    created_at: '2026-08-11T09:00:00.000Z',
     description: '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
     items: [
       { name: 'コーセー', ratio: 30, color: '#3B82F6' },
@@ -45,6 +47,7 @@ const SAMPLE_FUNDS: Fund[] = [
     author: 'ととのい太郎',
     period: '短期',
     funny_count: 28,
+    created_at: '2026-08-10T22:30:00.000Z',
     description: '自分の大好きな「深夜ラーメン」と「週末サウナ」を提供している企業に全集中投資。難しい分析は不要、パッションと愛だけで勝負！',
     items: [
       { name: 'ギフトHD（町田商店）', ratio: 50, color: '#EF4444' },
@@ -58,6 +61,7 @@ const SAMPLE_FUNDS: Fund[] = [
     author: '堅実チャレンジャー ◆xyz98765',
     period: '中期',
     funny_count: 15,
+    created_at: '2026-08-10T15:00:00.000Z',
     description: '王道の「eMAXIS Slim 全世界株式」で超堅実に土台を固めつつ、爆発力のあるビットコインを15%だけスパイスとして投入したハイブリッド構成。',
     items: [
       { name: '全世界株式（オルカン）', ratio: 85, color: '#2563EB' },
@@ -67,6 +71,19 @@ const SAMPLE_FUNDS: Fund[] = [
 ];
 
 type TabType = 'popular' | 'trending' | 'weekly';
+
+// 日時フォーマット関数 (例: 2026/08/11 12:14)
+function formatDate(dateString?: string): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}/${month}/${day} ${hours}:${minutes}`;
+}
 
 function RankingList({ funds }: { funds: Fund[] }) {
   const [activeTab, setActiveTab] = useState<TabType>('popular');
@@ -132,7 +149,7 @@ function RankingList({ funds }: { funds: Fund[] }) {
   );
 }
 
-// 📐 正確なドーナツ扇形パスを生成する関数（12時始点）
+// ドーナツ扇形パス生成関数（12時始点）
 function getDonutSlicePath(
   cx: number,
   cy: number,
@@ -141,7 +158,6 @@ function getDonutSlicePath(
   startAngleDeg: number,
   endAngleDeg: number
 ) {
-  // 12時（真上）を0度とし、時計回りに回転
   const startRad = ((startAngleDeg - 90) * Math.PI) / 180;
   const endRad = ((endAngleDeg - 90) * Math.PI) / 180;
 
@@ -324,7 +340,7 @@ export default function Home() {
 
               const itemsList = fund.items || [];
 
-              // 🔄【同一銘柄の自動合算処理】銘柄名ごとに完全統合
+              // 同一銘柄の自動合算
               const mergedGroup: { name: string; ratio: number; color: string }[] = [];
               const nameIndexMap = new Map<string, number>();
 
@@ -355,7 +371,6 @@ export default function Home() {
                 }
               });
 
-              // 全体比率の合計を正規化（合計100%に調整）
               const totalRatioSum = mergedGroup.reduce((s, i) => s + i.ratio, 0) || 1;
               const formattedItems = mergedGroup.map((i) => ({
                 ...i,
@@ -363,6 +378,7 @@ export default function Home() {
               }));
 
               let currentAngle = 0;
+              const formattedCreatedDate = formatDate(fund.created_at);
 
               return (
                 <a
@@ -371,16 +387,26 @@ export default function Home() {
                   className="block bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition active:scale-98"
                 >
                   <div className="flex justify-between items-center text-xs text-slate-500">
-                    <button
-                      type="button"
-                      onClick={(e) => handleAuthorClick(fund.author || '匿名', e)}
-                      className="font-bold text-slate-700 hover:text-indigo-600 hover:underline flex items-center gap-1 transition"
-                      title="このユーザーの投稿一覧を見る"
-                    >
-                      <span>@{fund.author || '匿名'}</span>
-                      <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.2 rounded">投稿一覧 🔍</span>
-                    </button>
-                    <span className="bg-indigo-50 text-indigo-600 font-semibold px-2.5 py-0.5 rounded-full">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={(e) => handleAuthorClick(fund.author || '匿名', e)}
+                        className="font-bold text-slate-700 hover:text-indigo-600 hover:underline flex items-center gap-1 transition"
+                        title="このユーザーの投稿一覧を見る"
+                      >
+                        <span>@{fund.author || '匿名'}</span>
+                        <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.2 rounded">投稿一覧 🔍</span>
+                      </button>
+
+                      {/* 🕒 投稿日時の表示 */}
+                      {formattedCreatedDate && (
+                        <span className="text-[11px] text-slate-400">
+                          ・ {formattedCreatedDate}
+                        </span>
+                      )}
+                    </div>
+
+                    <span className="bg-indigo-50 text-indigo-600 font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0">
                       {fund.period}
                     </span>
                   </div>
@@ -421,25 +447,22 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 正確なPath描画による12時始点ドーナツグラフ */}
                     {currentChart === 'pie' ? (
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                         <div className="relative w-80 h-80 flex items-center justify-center">
                           <svg viewBox="0 0 200 200" className="w-full h-full">
                             {formattedItems.map((item, idx) => {
                               if (item.ratio <= 0) return null;
-                              
+
                               const sliceAngle = (item.ratio / 100) * 360;
-                              // ほぼ100%の場合は円が消えないよう359.99度に制限
                               const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
-                              
+
                               const startAngle = currentAngle;
                               const endAngle = currentAngle + safeAngle;
                               currentAngle += safeAngle;
 
                               const isHovered = activeHoveredItem?.name === item.name;
-                              
-                              // 外半径と内半径の設定（ホバー時は少し膨らむ）
+
                               const outerR = isHovered ? 92 : 86;
                               const innerR = 48;
 
@@ -466,7 +489,6 @@ export default function Home() {
                               );
                             })}
 
-                            {/* 中央穴カバー（真ん中では反応しない設定） */}
                             <circle
                               cx="100"
                               cy="100"
@@ -481,7 +503,6 @@ export default function Home() {
                           </svg>
                         </div>
 
-                        {/* 📍 銘柄表示バッジ（未ホバー時は何も表示しない） */}
                         <div className="h-8 mt-1 flex items-center justify-center">
                           {activeHoveredItem && (
                             <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
@@ -514,7 +535,6 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* 凡例リスト */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {formattedItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
