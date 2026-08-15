@@ -9,15 +9,15 @@ type FundItem = {
   price?: number;
   shares?: number;
   amount?: number;
-  ratio: number;
-  color: string;
+  ratio?: number;
+  color?: string;
 };
 
 type Fund = {
   id: string;
   title: string;
   author: string;
-  period: string;
+  period?: string;
   funny_count: number;
   description: string;
   total_amount?: number;
@@ -31,12 +31,12 @@ type Comment = {
   text: string;
 };
 
-// ⚾️ 例として残す大谷ファンド（フォールバック用）
+const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
+
 const OHTANI_FUND_EXAMPLE: Fund = {
   id: '1',
   title: '大谷CM採用企業ポートフォリオ',
   author: '大谷ファン',
-  period: '長期',
   created_at: '2026-08-01T00:00:00.000Z',
   funny_count: 42,
   description:
@@ -49,6 +49,50 @@ const OHTANI_FUND_EXAMPLE: Fund = {
   ],
 };
 
+function formatDate(dateString?: string): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}/${month}/${day} ${hours}:${minutes}`;
+}
+
+function getDonutSlicePath(
+  cx: number,
+  cy: number,
+  rOuter: number,
+  rInner: number,
+  startAngleDeg: number,
+  endAngleDeg: number
+) {
+  const startRad = ((startAngleDeg - 90) * Math.PI) / 180;
+  const endRad = ((endAngleDeg - 90) * Math.PI) / 180;
+
+  const x1Outer = cx + rOuter * Math.cos(startRad);
+  const y1Outer = cy + rOuter * Math.sin(startRad);
+  const x2Outer = cx + rOuter * Math.cos(endRad);
+  const y2Outer = cy + rOuter * Math.sin(endRad);
+
+  const x1Inner = cx + rInner * Math.cos(endRad);
+  const y1Inner = cy + rInner * Math.sin(endRad);
+  const x2Inner = cx + rInner * Math.cos(startRad);
+  const y2Inner = cy + rInner * Math.sin(startRad);
+
+  const largeArcFlag = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
+
+  return [
+    `M ${x1Outer} ${y1Outer}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArcFlag} 1 ${x2Outer} ${y2Outer}`,
+    `L ${x1Inner} ${y1Inner}`,
+    `A ${rInner} ${rInner} 0 ${largeArcFlag} 0 ${x2Inner} ${y2Inner}`,
+    'Z',
+  ].join(' ');
+}
+
 export default function FundDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const fundId = resolvedParams.id;
@@ -57,12 +101,10 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
   const [fund, setFund] = useState<Fund | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
+  const [hoveredItem, setHoveredItem] = useState<{ name: string; ratio: number; color: string } | null>(null);
 
-  // コメント用ステート
-  const [comments, setComments] = useState<Comment[]>([
-    { id: 1, author: '株初心者', text: 'コンセプトが最高！真似してみたいです笑' },
-    { id: 2, author: '名無しさん', text: '短期だとボラティリティ高そうだけど面白い！' },
-  ]);
+  // 💬 サクラコメントを完全削除（空配列で初期化）
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
@@ -76,7 +118,7 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
         .single();
 
       if (error || !data) {
-        console.warn('Supabaseからの取得に失敗したため、例（大谷ファンド）を表示します:', error);
+        console.warn('Supabaseからの取得に失敗したため、例を表示します:', error);
         setFund(OHTANI_FUND_EXAMPLE);
       } else {
         setFund(data);
@@ -93,11 +135,8 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
     if (!fund) return;
 
     const newCount = (fund.funny_count || 0) + 1;
-
-    // UIを即時更新
     setFund({ ...fund, funny_count: newCount });
 
-    // Supabase上のデータであれば更新処理を実行
     const { error } = await supabase
       .from('funds')
       .update({ funny_count: newCount })
@@ -111,11 +150,9 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-    setComments([...comments, { id: Date.now(), author: 'あなた', text: newComment }]);
+    setComments([...comments, { id: Date.now(), author: 'あなた', text: newComment.trim() }]);
     setNewComment('');
   };
-
-  let cumulativeAngle = 0;
 
   if (loading) {
     return (
@@ -139,32 +176,70 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  const totalAmount = fund.total_amount || fund.items?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0;
+  const itemsList = fund.items || [];
+  const mergedGroup: { name: string; ratio: number; color: string; price?: number; shares?: number; amount?: number }[] = [];
+  const nameIndexMap = new Map<string, number>();
+
+  const calculatedTotal = fund.total_amount || itemsList.reduce((sum, item) => {
+    const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
+    return sum + itemAmt;
+  }, 0);
+
+  itemsList.forEach((item, idx) => {
+    const name = (item.name || `銘柄${idx + 1}`).trim();
+    const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
+    let itemRatio = Number(item.ratio || 0);
+
+    if (!itemRatio && calculatedTotal > 0) {
+      itemRatio = Math.round((itemAmt / calculatedTotal) * 100);
+    }
+
+    if (nameIndexMap.has(name)) {
+      const targetIdx = nameIndexMap.get(name)!;
+      mergedGroup[targetIdx].ratio += itemRatio;
+      if (itemAmt) mergedGroup[targetIdx].amount = (mergedGroup[targetIdx].amount || 0) + itemAmt;
+    } else {
+      nameIndexMap.set(name, mergedGroup.length);
+      mergedGroup.push({
+        name,
+        ratio: itemRatio,
+        price: item.price,
+        shares: item.shares,
+        amount: itemAmt,
+        color: item.color || DEFAULT_COLORS[mergedGroup.length % DEFAULT_COLORS.length],
+      });
+    }
+  });
+
+  const totalRatioSum = mergedGroup.reduce((s, i) => s + i.ratio, 0) || 1;
+  const formattedItems = mergedGroup.map((i) => ({
+    ...i,
+    ratio: Math.round((i.ratio / totalRatioSum) * 100) || i.ratio,
+  }));
+
+  let currentAngle = 0;
+  const formattedCreatedDate = formatDate(fund.created_at);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push('/')}
           className="text-sm font-medium text-slate-600 hover:text-slate-900"
         >
-          ← 戻る
+          ← トップへ戻る
         </button>
         <h1 className="text-base font-bold text-slate-800">ファンド詳細</h1>
         <div className="w-10" />
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-6 space-y-6">
-        {/* ファンド概要 */}
         <article className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-5">
           <div className="flex justify-between items-center text-xs text-slate-500">
             <div>
               投稿者: <span className="font-bold text-slate-700">@{fund.author}</span>
-              {fund.created_at && `・${new Date(fund.created_at).toLocaleDateString('ja-JP')}`}
+              {formattedCreatedDate && ` ・ ${formattedCreatedDate}`}
             </div>
-            <span className="bg-indigo-50 text-indigo-600 font-semibold px-2.5 py-0.5 rounded-full">
-              {fund.period}
-            </span>
           </div>
 
           <div>
@@ -174,123 +249,150 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
             </p>
           </div>
 
-          {/* ポートフォリオ構成 ＆ ビジュアル切り替え */}
           <div className="space-y-3 pt-2">
             <div className="flex justify-between items-center">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 📊 ポートフォリオ構成
               </h2>
+              <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setChartType('pie')}
+                  className={`px-2 py-0.5 rounded-md transition ${
+                    chartType === 'pie'
+                      ? 'bg-white text-indigo-600 shadow-2xs'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  🍕 円グラフ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartType('bar')}
+                  className={`px-2 py-0.5 rounded-md transition ${
+                    chartType === 'bar'
+                      ? 'bg-white text-indigo-600 shadow-2xs'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  📊 バー
+                </button>
+              </div>
             </div>
 
-            {/* 表示切り替えタブ */}
-            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setChartType('pie')}
-                className={`flex-1 py-1 rounded-lg transition ${
-                  chartType === 'pie'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                🍕 円グラフ
-              </button>
-              <button
-                type="button"
-                onClick={() => setChartType('bar')}
-                className={`flex-1 py-1 rounded-lg transition ${
-                  chartType === 'bar'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                📊 バー表示
-              </button>
-            </div>
+            {/* 🍕 大型円グラフ */}
+            {chartType === 'pie' ? (
+              <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                <div className="relative w-80 h-80 flex items-center justify-center">
+                  <svg viewBox="0 0 200 200" className="w-full h-full">
+                    {formattedItems.map((item, idx) => {
+                      if (item.ratio <= 0) return null;
 
-            {/* グラフ描画エリア */}
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center justify-center">
-              {chartType === 'pie' ? (
-                <div className="relative w-64 h-64 my-2">
-                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                    {fund.items &&
-                      fund.items.map((item, idx) => {
-                        if (item.ratio <= 0) return null;
-                        const strokeDasharray = `${item.ratio} ${100 - item.ratio}`;
-                        const strokeDashoffset = -cumulativeAngle;
-                        cumulativeAngle += item.ratio;
+                      const sliceAngle = (item.ratio / 100) * 360;
+                      const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
 
-                        return (
-                          <circle
-                            key={idx}
-                            cx="50"
-                            cy="50"
-                            r="15.91549430918954"
-                            fill="transparent"
-                            stroke={item.color}
-                            strokeWidth="11"
-                            strokeDasharray={strokeDasharray}
-                            strokeDashoffset={strokeDashoffset}
-                            className="transition-all duration-300"
-                          />
-                        );
-                      })}
-                  </svg>
+                      const startAngle = currentAngle;
+                      const endAngle = currentAngle + safeAngle;
+                      currentAngle += safeAngle;
 
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
-                      TOTAL
-                    </span>
-                    <span className="text-lg font-black tracking-tight text-slate-800 leading-none">
-                      {totalAmount > 0 ? `¥${totalAmount.toLocaleString()}` : '構成割合'}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="w-full space-y-2 py-3">
-                  <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-200 shadow-inner">
-                    {fund.items &&
-                      fund.items.map((item, idx) => (
-                        <div
+                      const isHovered = hoveredItem?.name === item.name;
+                      const outerR = isHovered ? 92 : 86;
+                      const innerR = 48;
+
+                      const pathData = getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle);
+
+                      return (
+                        <path
                           key={idx}
+                          d={pathData}
+                          fill={item.color}
+                          className="transition-all duration-200 cursor-pointer"
                           style={{
-                            width: `${Math.max(0, Math.min(100, item.ratio))}%`,
-                            backgroundColor: item.color,
+                            opacity: hoveredItem && !isHovered ? 0.35 : 1,
                           }}
-                          className="transition-all duration-200"
+                          onMouseEnter={() => setHoveredItem(item)}
+                          onMouseLeave={() => setHoveredItem(null)}
                         />
-                      ))}
-                  </div>
+                      );
+                    })}
+
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="47"
+                      fill="transparent"
+                      className="cursor-default"
+                      onMouseEnter={() => setHoveredItem(null)}
+                    />
+                  </svg>
                 </div>
-              )}
-            </div>
+
+                <div className="h-8 mt-1 flex items-center justify-center">
+                  {hoveredItem ? (
+                    <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: hoveredItem.color }}
+                      />
+                      <span className="text-xs font-bold text-slate-800">
+                        {hoveredItem.name}
+                      </span>
+                      <span
+                        className="text-xs font-black px-2 py-0.5 rounded-md text-white"
+                        style={{ backgroundColor: hoveredItem.color }}
+                      >
+                        {hoveredItem.ratio}%
+                      </span>
+                    </div>
+                  ) : (
+                    calculatedTotal > 0 && (
+                      <span className="text-xs font-bold text-slate-600">
+                        合計設定額: ¥{calculatedTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner my-2">
+                {formattedItems.map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{ width: `${item.ratio}%`, backgroundColor: item.color }}
+                    title={`${item.name}: ${item.ratio}%`}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* 銘柄一覧 */}
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
-              {fund.items &&
-                fund.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 text-sm bg-white">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <div>
-                        <span className="font-medium text-slate-800">{item.name}</span>
-                        {item.price && item.shares ? (
-                          <span className="text-xs text-slate-400 block">
-                            ¥{item.price.toLocaleString()} × {item.shares}株
-                          </span>
-                        ) : null}
-                      </div>
+              {formattedItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 text-sm bg-white">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <div>
+                      <span className="font-medium text-slate-800">{item.name}</span>
+                      {item.price && item.shares ? (
+                        <span className="text-xs text-slate-400 block">
+                          ¥{item.price.toLocaleString(undefined, { maximumFractionDigits: 1 })} × {item.shares}株
+                        </span>
+                      ) : item.amount ? (
+                        <span className="text-xs text-slate-400 block">
+                          ¥{item.amount.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </span>
+                      ) : null}
                     </div>
-                    <span className="font-bold text-slate-900">{item.ratio}%</span>
                   </div>
-                ))}
+                  <span className="font-bold text-slate-900">{item.ratio}%</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* フッターアクション */}
           <div className="pt-2 flex justify-between items-center border-t border-slate-100">
             <button
               onClick={handleFunnyClick}
@@ -305,7 +407,7 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </article>
 
-        {/* コメントセクション */}
+        {/* 💬 コメントセクション（サクラなし） */}
         <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4">
           <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
             <span>💬 コメント</span>
@@ -313,12 +415,16 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
           </h2>
 
           <div className="space-y-2.5">
-            {comments.map((c) => (
-              <div key={c.id} className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
-                <div className="font-bold text-slate-600">@{c.author}</div>
-                <div className="text-slate-800">{c.text}</div>
-              </div>
-            ))}
+            {comments.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-4">まだコメントはありません。</p>
+            ) : (
+              comments.map((c) => (
+                <div key={c.id} className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+                  <div className="font-bold text-slate-600">@{c.author}</div>
+                  <div className="text-slate-800">{c.text}</div>
+                </div>
+              ))
+            )}
           </div>
 
           <form onSubmit={handleAddComment} className="flex gap-2 pt-2">
