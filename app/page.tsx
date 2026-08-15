@@ -497,7 +497,7 @@ export default function Home() {
                           </svg>
                         </div>
 
-                        {/* 📍 円下の情報表示バッジ（単価・株数・合計額を表示） */}
+                        {/* 📍 円下の情報表示バッジ */}
                         <div className="h-9 mt-1 flex items-center justify-center">
                           {activeHoveredItem ? (
                             <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm animate-fade-in text-xs">
@@ -541,7 +541,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* 銘柄一覧バッジ（単価と株数を表示） */}
+                    {/* 銘柄一覧バッジ */}
                     <div className="flex flex-wrap gap-x-2.5 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {formattedItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
@@ -597,7 +597,21 @@ export default function Home() {
           )}
         </section>
 
-        <footer className="pt-8 pb-4 text-center text-[11px] text-slate-400 space-y-2 border-t border-slate-200">
+        {/* 📋 フッター（ご意見・お問い合わせフォームリンク設置） */}
+        <footer className="pt-8 pb-4 text-center text-[11px] text-slate-400 space-y-3 border-t border-slate-200">
+          <div className="pb-2">
+            <a
+              href="https://docs.google.com/forms/d/e/1FAIpQLScOBq_NVmGd5JBdc_KKNvTb6JI4wSBX7FRjhId5XIVzKZGHJw/viewform?usp=publish-editor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 shadow-2xs transition"
+            >
+              <span>📮</span>
+              <span>ご意見・ご要望・不具合報告はこちら</span>
+              <span>↗</span>
+            </a>
+          </div>
+
           <p className="font-bold text-slate-500">【免責事項・ご注意】</p>
           <p className="leading-relaxed">
             当Webサイト（俺ファンド）は、ユーザーがアイデアやエンターテインメント目的で作成した仮想ポートフォリオを共有するプラットフォームです。特定の有価証券や金融商品の売買・投資勧誘を目的としたものではありません。実際の投資判断はご自身の責任において行っていただきますようお願いいたします。
