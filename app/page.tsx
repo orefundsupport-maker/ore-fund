@@ -16,7 +16,6 @@ type Fund = {
   id: string;
   title: string;
   author: string;
-  period: string;
   funny_count: number;
   description: string;
   created_at?: string;
@@ -30,7 +29,6 @@ const SAMPLE_FUNDS: Fund[] = [
     id: '1',
     title: '大谷CM採用企業ポートフォリオ',
     author: '大谷ファン ◆abc12345',
-    period: '長期',
     funny_count: 42,
     created_at: '2026-08-11T09:00:00.000Z',
     description: '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
@@ -45,7 +43,6 @@ const SAMPLE_FUNDS: Fund[] = [
     id: '2',
     title: '深夜のラーメン＆サウナ欲望全振ファンド',
     author: 'ととのい太郎',
-    period: '短期',
     funny_count: 28,
     created_at: '2026-08-10T22:30:00.000Z',
     description: '自分の大好きな「深夜ラーメン」と「週末サウナ」を提供している企業に全集中投資。難しい分析は不要、パッションと愛だけで勝負！',
@@ -59,7 +56,6 @@ const SAMPLE_FUNDS: Fund[] = [
     id: '3',
     title: 'オルカン一括＆暗号資産スパイス',
     author: '堅実チャレンジャー ◆xyz98765',
-    period: '中期',
     funny_count: 15,
     created_at: '2026-08-10T15:00:00.000Z',
     description: '王道の「eMAXIS Slim 全世界株式」で超堅実に土台を固めつつ、爆発力のあるビットコインを15%だけスパイスとして投入したハイブリッド構成。',
@@ -182,7 +178,6 @@ function getDonutSlicePath(
 
 export default function Home() {
   const [funds, setFunds] = useState<Fund[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState('すべて');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -243,10 +238,6 @@ export default function Home() {
   };
 
   const filteredFunds = funds.filter((fund) => {
-    if (selectedPeriod !== 'すべて' && fund.period !== selectedPeriod) {
-      return false;
-    }
-
     if (!searchQuery.trim()) return true;
 
     const query = searchQuery.toLowerCase().trim();
@@ -263,7 +254,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
-      {/* 🏠 左上ロゴボタンでトップページへ戻るリンクを適用 */}
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <a
           href="/"
@@ -275,6 +265,7 @@ export default function Home() {
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-4 space-y-6">
+        {/* 🔍 検索バー */}
         <section className="space-y-3">
           <div className="relative">
             <input
@@ -305,28 +296,25 @@ export default function Home() {
               </button>
             </div>
           )}
-
-          <div className="flex gap-2 text-sm overflow-x-auto pb-1">
-            {['すべて', '短期', '中期', '長期'].map((period) => (
-              <button
-                key={period}
-                onClick={() => setSelectedPeriod(period)}
-                className={`px-4 py-1.5 rounded-full font-medium transition whitespace-nowrap ${
-                  selectedPeriod === period
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {period}
-              </button>
-            ))}
-          </div>
         </section>
 
+        {/* ➕ ランキング上部の中央「自分で作る」ボタン */}
+        <section className="flex justify-center pt-1">
+          <a
+            href="/create"
+            className="w-full max-w-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-2xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 text-base active:scale-98"
+          >
+            <span className="text-lg">➕</span>
+            <span>自分で作る</span>
+          </a>
+        </section>
+
+        {/* 🏆 ランキングエリア */}
         <section>
           <RankingList funds={funds} />
         </section>
 
+        {/* 💡 注目ファンド一覧 */}
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
             💡 注目ファンド一覧
@@ -408,10 +396,6 @@ export default function Home() {
                         </span>
                       )}
                     </div>
-
-                    <span className="bg-indigo-50 text-indigo-600 font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0">
-                      {fund.period}
-                    </span>
                   </div>
 
                   <div>
@@ -592,14 +576,6 @@ export default function Home() {
           </p>
         </footer>
       </main>
-
-      <a
-        href="/create"
-        className="fixed bottom-6 right-6 z-50 bg-indigo-600 text-white font-bold px-5 py-3.5 rounded-full shadow-xl hover:bg-indigo-700 transition flex items-center gap-2 text-sm active:scale-95"
-      >
-        <span>➕</span>
-        <span>自分で作る</span>
-      </a>
     </div>
   );
 }
