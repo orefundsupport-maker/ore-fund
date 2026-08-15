@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,7 +13,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// 🌐 X（Twitter）や検索エンジン向けのメタデータ・OGP設定
 export const metadata: Metadata = {
   metadataBase: new URL("https://orefund.netlify.app"),
   title: {
@@ -45,6 +45,23 @@ export default function RootLayout({
       lang="ja"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* 📊 Google アナリティクス (GA4) 測定タグ */}
+        <Script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-8TTQV42GW0"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-8TTQV42GW0');
+          `}
+        </Script>
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
