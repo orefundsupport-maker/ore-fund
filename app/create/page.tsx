@@ -14,7 +14,7 @@ interface StockItem {
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
-// 📈 代表的な銘柄コード変換辞書
+// 代表的な主要銘柄コード対応表
 const STOCK_CODE_MAP: Record<string, string> = {
   '7203': 'トヨタ自動車',
   '6758': 'ソニーグループ',
@@ -51,7 +51,6 @@ const STOCK_CODE_MAP: Record<string, string> = {
   '9656': 'グリーンランド',
 };
 
-// 2ちゃんねる風トリップ生成
 function generateTrip(inputName: string): string {
   const trimmed = inputName.trim();
   if (!trimmed) return '名無し';
@@ -76,7 +75,6 @@ function generateTrip(inputName: string): string {
   return `${namePart} ◆${tripKey}`;
 }
 
-// 📐 ドーナツ扇形パス生成関数（12時始点）
 function getDonutSlicePath(
   cx: number,
   cy: number,
@@ -145,10 +143,8 @@ export default function CreateFundPage() {
     setItems(items.filter((item) => item.id !== id));
   };
 
-  // 銘柄名入力時の自動コード変換ハンドラー
   const handleNameChange = (id: string, value: string) => {
     const trimmed = value.trim();
-    // 4桁コードと一致した場合は社名に置換
     const convertedName = STOCK_CODE_MAP[trimmed] || value;
     setItems(items.map((item) => (item.id === id ? { ...item, name: convertedName } : item)));
   };
@@ -166,14 +162,13 @@ export default function CreateFundPage() {
       return;
     }
 
-    // 🚀 確認ポップアップ無しでそのまま即投稿
     setLoading(true);
 
     const { error } = await supabase.from('funds').insert([
       {
         title,
         author: displayAuthor,
-        period: '長期', // DBの互換性用デフォルト
+        period: '長期',
         funny_count: 0,
         description: description || '説明はありません。',
         total_amount: totalAmount,
@@ -219,7 +214,6 @@ export default function CreateFundPage() {
               1. ファンド基本情報
             </h2>
 
-            {/* 🏷 投稿者名＆トリップ設定 */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 投稿者名 （空欄で「名無し」 / `#`を付けて専用ID化）
@@ -299,7 +293,6 @@ export default function CreateFundPage() {
               </button>
             </div>
 
-            {/* 🍕 大型円グラフプレビュー */}
             <div className="pt-2 pb-4 px-2 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center justify-center space-y-3">
               {chartType === 'pie' ? (
                 <div className="relative w-72 h-72 flex items-center justify-center">
@@ -368,6 +361,11 @@ export default function CreateFundPage() {
             </div>
 
             <div className="space-y-4 pt-2">
+              {/* 💡 4桁コードに関する注記メッセージ */}
+              <div className="text-[11px] text-slate-400 font-medium px-1">
+                💡 銘柄名は直接入力できるほか、主要銘柄の4桁コード（例: 7203、7974）を入力すると自動で社名に変換されます。
+              </div>
+
               {items.map((item, index) => {
                 const amount = Number(item.price || 0) * Number(item.shares || 0);
                 const ratio = totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : 0;
@@ -379,11 +377,10 @@ export default function CreateFundPage() {
                         className="w-3.5 h-3.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: item.color }}
                       />
-                      {/* 🔍 銘柄コード入力で自動変換 */}
                       <input
                         type="text"
                         required
-                        placeholder={`銘柄名 または 4桁コード (例: 7203)`}
+                        placeholder={`銘柄名 または 4桁コード`}
                         value={item.name}
                         onChange={(e) => handleNameChange(item.id, e.target.value)}
                         className="flex-grow px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
@@ -407,7 +404,6 @@ export default function CreateFundPage() {
                         <label className="block text-slate-500 mb-1 font-medium">
                           購入単価 (円) <span className="text-[10px] text-slate-400">※小数第1位対応</span>
                         </label>
-                        {/* 🔢 step="0.1" で小数点第一位まで入力可能 */}
                         <input
                           type="number"
                           step="0.1"

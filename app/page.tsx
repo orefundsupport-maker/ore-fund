@@ -18,6 +18,7 @@ type Fund = {
   author: string;
   funny_count: number;
   description: string;
+  total_amount?: number;
   created_at?: string;
   items: FundItem[];
 };
@@ -32,11 +33,12 @@ const SAMPLE_FUNDS: Fund[] = [
     funny_count: 42,
     created_at: '2026-08-11T09:00:00.000Z',
     description: '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
+    total_amount: 1000000,
     items: [
-      { name: 'コーセー', ratio: 30, color: '#3B82F6' },
-      { name: '伊藤園', ratio: 30, color: '#10B981' },
-      { name: 'セイコーグループ', ratio: 20, color: '#F59E0B' },
-      { name: '西川', ratio: 20, color: '#EC4899' },
+      { name: 'コーセー', price: 10000, shares: 30, amount: 300000, ratio: 30, color: '#3B82F6' },
+      { name: '伊藤園', price: 3000, shares: 100, amount: 300000, ratio: 30, color: '#10B981' },
+      { name: 'セイコーグループ', price: 4000, shares: 50, amount: 200000, ratio: 20, color: '#F59E0B' },
+      { name: '西川', price: 2000, shares: 100, amount: 200000, ratio: 20, color: '#EC4899' },
     ],
   },
   {
@@ -46,10 +48,11 @@ const SAMPLE_FUNDS: Fund[] = [
     funny_count: 28,
     created_at: '2026-08-10T22:30:00.000Z',
     description: '自分の大好きな「深夜ラーメン」と「週末サウナ」を提供している企業に全集中投資。難しい分析は不要、パッションと愛だけで勝負！',
+    total_amount: 500000,
     items: [
-      { name: 'ギフトHD（町田商店）', ratio: 50, color: '#EF4444' },
-      { name: '極楽湯HD', ratio: 30, color: '#8B5CF6' },
-      { name: '現金（待機資金）', ratio: 20, color: '#6B7280' },
+      { name: 'ギフトHD（町田商店）', price: 2500, shares: 100, amount: 250000, ratio: 50, color: '#EF4444' },
+      { name: '極楽湯HD', price: 500, shares: 300, amount: 150000, ratio: 30, color: '#8B5CF6' },
+      { name: '現金（待機資金）', price: 100000, shares: 1, amount: 100000, ratio: 20, color: '#6B7280' },
     ],
   },
   {
@@ -59,9 +62,10 @@ const SAMPLE_FUNDS: Fund[] = [
     funny_count: 15,
     created_at: '2026-08-10T15:00:00.000Z',
     description: '王道の「eMAXIS Slim 全世界株式」で超堅実に土台を固めつつ、爆発力のあるビットコインを15%だけスパイスとして投入したハイブリッド構成。',
+    total_amount: 1000000,
     items: [
-      { name: '全世界株式（オルカン）', ratio: 85, color: '#2563EB' },
-      { name: '暗号資産（BTC/ETH）', ratio: 15, color: '#F97316' },
+      { name: '全世界株式（オルカン）', price: 20000, shares: 42.5, amount: 850000, ratio: 85, color: '#2563EB' },
+      { name: '暗号資産（BTC/ETH）', price: 150000, shares: 1, amount: 150000, ratio: 15, color: '#F97316' },
     ],
   },
 ];
@@ -182,7 +186,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   const [chartTypes, setChartTypes] = useState<Record<string, 'pie' | 'bar'>>({});
-  const [hoveredItems, setHoveredItems] = useState<Record<string, FundItem | null>>({});
+  const [hoveredItems, setHoveredItems] = useState<Record<string, (FundItem & { ratio: number }) | null>>({});
 
   useEffect(() => {
     async function fetchFunds() {
@@ -241,7 +245,6 @@ export default function Home() {
     if (!searchQuery.trim()) return true;
 
     const query = searchQuery.toLowerCase().trim();
-
     const matchTitle = fund.title?.toLowerCase().includes(query);
     const matchDescription = fund.description?.toLowerCase().includes(query);
     const matchAuthor = fund.author?.toLowerCase().includes(query);
@@ -265,7 +268,6 @@ export default function Home() {
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-4 space-y-6">
-        {/* 🔍 検索バー */}
         <section className="space-y-3">
           <div className="relative">
             <input
@@ -298,7 +300,7 @@ export default function Home() {
           )}
         </section>
 
-        {/* ➕ ランキング上部の中央「自分で作る」ボタン */}
+        {/* ➕ 自分で作るボタン */}
         <section className="flex justify-center pt-1">
           <a
             href="/create"
@@ -333,10 +335,10 @@ export default function Home() {
 
               const itemsList = fund.items || [];
 
-              const mergedGroup: { name: string; ratio: number; color: string }[] = [];
+              const mergedGroup: { name: string; ratio: number; color: string; price?: number; shares?: number; amount?: number }[] = [];
               const nameIndexMap = new Map<string, number>();
 
-              const calculatedTotal = itemsList.reduce((sum, item) => {
+              const calculatedTotal = fund.total_amount || itemsList.reduce((sum, item) => {
                 const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
                 return sum + itemAmt;
               }, 0);
@@ -353,11 +355,15 @@ export default function Home() {
                 if (nameIndexMap.has(name)) {
                   const targetIdx = nameIndexMap.get(name)!;
                   mergedGroup[targetIdx].ratio += itemRatio;
+                  if (itemAmt) mergedGroup[targetIdx].amount = (mergedGroup[targetIdx].amount || 0) + itemAmt;
                 } else {
                   nameIndexMap.set(name, mergedGroup.length);
                   mergedGroup.push({
                     name,
                     ratio: itemRatio,
+                    price: item.price,
+                    shares: item.shares,
+                    amount: itemAmt,
                     color: item.color || DEFAULT_COLORS[mergedGroup.length % DEFAULT_COLORS.length],
                   });
                 }
@@ -434,6 +440,7 @@ export default function Home() {
                       </div>
                     </div>
 
+                    {/* 🍕 インタラクティブ円グラフ */}
                     {currentChart === 'pie' ? (
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                         <div className="relative w-80 h-80 flex items-center justify-center">
@@ -490,23 +497,35 @@ export default function Home() {
                           </svg>
                         </div>
 
-                        <div className="h-8 mt-1 flex items-center justify-center">
-                          {activeHoveredItem && (
-                            <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
+                        {/* 📍 円下の情報表示バッジ（単価・株数・合計額を表示） */}
+                        <div className="h-9 mt-1 flex items-center justify-center">
+                          {activeHoveredItem ? (
+                            <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm animate-fade-in text-xs">
                               <span
                                 className="w-3 h-3 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: activeHoveredItem.color }}
                               />
-                              <span className="text-xs font-bold text-slate-800">
+                              <span className="font-bold text-slate-800">
                                 {activeHoveredItem.name}
                               </span>
+                              {activeHoveredItem.price && activeHoveredItem.shares && (
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  (¥{activeHoveredItem.price.toLocaleString()} × {activeHoveredItem.shares}株)
+                                </span>
+                              )}
                               <span
-                                className="text-xs font-black px-2 py-0.5 rounded-md text-white"
+                                className="font-black px-2 py-0.5 rounded-md text-white"
                                 style={{ backgroundColor: activeHoveredItem.color }}
                               >
                                 {activeHoveredItem.ratio}%
                               </span>
                             </div>
+                          ) : (
+                            calculatedTotal > 0 && (
+                              <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-100">
+                                合計設定額: ¥{calculatedTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                              </span>
+                            )
                           )}
                         </div>
                       </div>
@@ -522,7 +541,8 @@ export default function Home() {
                       </div>
                     )}
 
-                    <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-600 pt-1">
+                    {/* 銘柄一覧バッジ（単価と株数を表示） */}
+                    <div className="flex flex-wrap gap-x-2.5 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {formattedItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
                         return (
@@ -534,7 +554,7 @@ export default function Home() {
                             onMouseLeave={() =>
                               setHoveredItems((prev) => ({ ...prev, [fund.id]: null }))
                             }
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition cursor-pointer ${
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                               isHovered
                                 ? 'bg-indigo-50 border-indigo-200 shadow-xs scale-105'
                                 : 'bg-slate-50 border-slate-100'
@@ -545,7 +565,15 @@ export default function Home() {
                               style={{ backgroundColor: item.color }}
                             />
                             <span className={`font-medium ${isHovered ? 'text-indigo-900 font-bold' : 'text-slate-700'}`}>
-                              {item.name} ({item.ratio}%)
+                              {item.name}
+                            </span>
+                            {item.price && item.shares && (
+                              <span className="text-[10px] text-slate-400">
+                                (¥{item.price.toLocaleString()}×{item.shares})
+                              </span>
+                            )}
+                            <span className="font-bold text-slate-800">
+                              {item.ratio}%
                             </span>
                           </div>
                         );
