@@ -25,12 +25,13 @@ type Fund = {
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
+// 💡 デモ用サンプルの初期カウントをすべて0に設定
 const SAMPLE_FUNDS: Fund[] = [
   {
     id: '1',
     title: '大谷CM採用企業ポートフォリオ',
     author: '大谷ファン ◆abc12345',
-    funny_count: 42,
+    funny_count: 0,
     created_at: '2026-08-11T09:00:00.000Z',
     description: '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
     total_amount: 1000000,
@@ -45,7 +46,7 @@ const SAMPLE_FUNDS: Fund[] = [
     id: '2',
     title: '深夜のラーメン＆サウナ欲望全振ファンド',
     author: 'ととのい太郎',
-    funny_count: 28,
+    funny_count: 0,
     created_at: '2026-08-10T22:30:00.000Z',
     description: '自分の大好きな「深夜ラーメン」と「週末サウナ」を提供している企業に全集中投資。難しい分析は不要、パッションと愛だけで勝負！',
     total_amount: 500000,
@@ -59,7 +60,7 @@ const SAMPLE_FUNDS: Fund[] = [
     id: '3',
     title: 'オルカン一括＆暗号資産スパイス',
     author: '堅実チャレンジャー ◆xyz98765',
-    funny_count: 15,
+    funny_count: 0,
     created_at: '2026-08-10T15:00:00.000Z',
     description: '王道の「eMAXIS Slim 全世界株式」で超堅実に土台を固めつつ、爆発力のあるビットコインを15%だけスパイスとして投入したハイブリッド構成。',
     total_amount: 1000000,
@@ -184,11 +185,22 @@ export default function Home() {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [reactedFunds, setReactedFunds] = useState<string[]>([]);
 
   const [chartTypes, setChartTypes] = useState<Record<string, 'pie' | 'bar'>>({});
   const [hoveredItems, setHoveredItems] = useState<Record<string, (FundItem & { ratio: number }) | null>>({});
 
   useEffect(() => {
+    // 押下済みIDリストを読み込み
+    try {
+      const saved = localStorage.getItem('reacted_funny_funds');
+      if (saved) {
+        setReactedFunds(JSON.parse(saved));
+      }
+    } catch {
+      // localStorage利用不可時の安全処理
+    }
+
     async function fetchFunds() {
       setLoading(true);
       const { data, error } = await supabase
@@ -212,6 +224,17 @@ export default function Home() {
   const handleFunnyClick = async (id: string, currentCount: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    // 既に押している場合は二重押し不可
+    if (reactedFunds.includes(id)) return;
+
+    const nextReacted = [...reactedFunds, id];
+    setReactedFunds(nextReacted);
+    try {
+      localStorage.setItem('reacted_funny_funds', JSON.stringify(nextReacted));
+    } catch {
+      // localStorage保存エラー無視
+    }
 
     setFunds((prevFunds) =>
       prevFunds.map((fund) =>
@@ -332,6 +355,7 @@ export default function Home() {
             filteredFunds.map((fund) => {
               const currentChart = chartTypes[fund.id] || 'pie';
               const activeHoveredItem = hoveredItems[fund.id] || null;
+              const hasReacted = reactedFunds.includes(fund.id);
 
               const itemsList = fund.items || [];
 
@@ -584,9 +608,14 @@ export default function Home() {
                   <div className="pt-2 border-t border-slate-50 flex justify-between items-center">
                     <button
                       onClick={(e) => handleFunnyClick(fund.id, fund.funny_count, e)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-full transition active:scale-95"
+                      disabled={hasReacted}
+                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition ${
+                        hasReacted
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'text-amber-600 bg-amber-50 hover:bg-amber-100 active:scale-95'
+                      }`}
                     >
-                      <span>💡 おもしろ</span>
+                      <span>{hasReacted ? '💡 おもしろ済' : '💡 おもしろ'}</span>
                       <span>{fund.funny_count || 0}</span>
                     </button>
                     <span className="text-xs text-indigo-600 font-semibold">詳細を見る →</span>
@@ -597,7 +626,7 @@ export default function Home() {
           )}
         </section>
 
-        {/* 📋 フッター（ご意見・お問い合わせフォームリンク設置） */}
+        {/* 📋 フッター */}
         <footer className="pt-8 pb-4 text-center text-[11px] text-slate-400 space-y-3 border-t border-slate-200">
           <div className="pb-2">
             <a
