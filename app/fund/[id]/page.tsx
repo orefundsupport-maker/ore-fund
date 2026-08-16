@@ -237,6 +237,21 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
   const formattedCreatedDate = formatDate(fund.created_at);
   const hasReacted = reactedFunds.includes(fund.id);
 
+  // 𝕏 シェア用の投稿テキスト生成＆起動処理
+  const handleShareToX = () => {
+    const topItemsText = formattedItems
+      .slice(0, 4)
+      .map((item) => `・${item.name} ${item.ratio}%`)
+      .join('\n');
+    const remainingText = formattedItems.length > 4 ? `\n・他${formattedItems.length - 4}銘柄` : '';
+
+    const text = `📊「${fund.title}」を作りました！\n\n${topItemsText}${remainingText}\n\nあなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://orefund.netlify.app/fund/${fund.id}`;
+
+    const twitterIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
+    window.open(twitterIntent, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
@@ -406,6 +421,19 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* 𝕏 でシェアボタン */}
+          <div className="pt-2">
+            <button
+              onClick={handleShareToX}
+              className="w-full bg-black hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 active:scale-98"
+            >
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              <span>このファンドをポスト（共有）</span>
+            </button>
           </div>
 
           <div className="pt-2 flex justify-between items-center border-t border-slate-100">
