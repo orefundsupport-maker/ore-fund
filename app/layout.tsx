@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('[https://ore-fund.vercel.app](https://ore-fund.vercel.app)')
+  metadataBase: new URL("https://ore-fund.vercel.app"),
   title: {
     default: "俺ファンド - 理想の仮想ポートフォリオ作成・共有サービス",
     template: "%s | 俺ファンド",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "俺ファンド - 理想の仮想ポートフォリオ作成・共有サービス",
     description: "自分だけのオリジナル投資信託・株式ポートフォリオを作成して共有できるプラットフォーム「俺ファンド」。",
-    url: "https://orefund.netlify.app",
+    url: "https://ore-fund.vercel.app",
     siteName: "俺ファンド",
     locale: "ja_JP",
     type: "website",
@@ -32,6 +32,9 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "俺ファンド - 理想の仮想ポートフォリオ作成・共有サービス",
     description: "自分だけのオリジナル投資信託・株式ポートフォリオを作成して共有できるプラットフォーム「俺ファンド」。",
+  },
+  verification: {
+    google: "Fq1AsRfZt9tHMSRxU1fY0AyHzWCWopdoqQ8X0hJcXJ0",
   },
 };
 
