@@ -25,7 +25,6 @@ type Fund = {
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
-// 💡 デモ用サンプルの初期カウントをすべて0に設定
 const SAMPLE_FUNDS: Fund[] = [
   {
     id: '1',
@@ -140,7 +139,7 @@ function RankingList({ funds }: { funds: Fund[] }) {
               </span>
             </div>
             <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full whitespace-nowrap">
-              {item.funny_count || 0} おもしろ！
+              {item.funny_count || 0} 納得！
             </span>
           </a>
         ))}
@@ -191,14 +190,13 @@ export default function Home() {
   const [hoveredItems, setHoveredItems] = useState<Record<string, (FundItem & { ratio: number }) | null>>({});
 
   useEffect(() => {
-    // 押下済みIDリストを読み込み
     try {
-      const saved = localStorage.getItem('reacted_funny_funds');
+      const saved = localStorage.getItem('reacted_funds');
       if (saved) {
         setReactedFunds(JSON.parse(saved));
       }
     } catch {
-      // localStorage利用不可時の安全処理
+      // ignore
     }
 
     async function fetchFunds() {
@@ -225,15 +223,14 @@ export default function Home() {
     e.preventDefault();
     e.stopPropagation();
 
-    // 既に押している場合は二重押し不可
     if (reactedFunds.includes(id)) return;
 
     const nextReacted = [...reactedFunds, id];
     setReactedFunds(nextReacted);
     try {
-      localStorage.setItem('reacted_funny_funds', JSON.stringify(nextReacted));
+      localStorage.setItem('reacted_funds', JSON.stringify(nextReacted));
     } catch {
-      // localStorage保存エラー無視
+      // ignore
     }
 
     setFunds((prevFunds) =>
@@ -323,7 +320,6 @@ export default function Home() {
           )}
         </section>
 
-        {/* ➕ 自分で作るボタン */}
         <section className="flex justify-center pt-1">
           <a
             href="/create"
@@ -334,12 +330,10 @@ export default function Home() {
           </a>
         </section>
 
-        {/* 🏆 ランキングエリア */}
         <section>
           <RankingList funds={funds} />
         </section>
 
-        {/* 💡 注目ファンド一覧 */}
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
             💡 注目ファンド一覧
@@ -464,7 +458,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 🍕 インタラクティブ円グラフ */}
                     {currentChart === 'pie' ? (
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                         <div className="relative w-80 h-80 flex items-center justify-center">
@@ -521,7 +514,6 @@ export default function Home() {
                           </svg>
                         </div>
 
-                        {/* 📍 円下の情報表示バッジ */}
                         <div className="h-9 mt-1 flex items-center justify-center">
                           {activeHoveredItem ? (
                             <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm animate-fade-in text-xs">
@@ -565,7 +557,6 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* 銘柄一覧バッジ */}
                     <div className="flex flex-wrap gap-x-2.5 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {formattedItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
@@ -615,7 +606,7 @@ export default function Home() {
                           : 'text-amber-600 bg-amber-50 hover:bg-amber-100 active:scale-95'
                       }`}
                     >
-                      <span>{hasReacted ? '💡 おもしろ済' : '💡 おもしろ'}</span>
+                      <span>{hasReacted ? '💡 納得済' : '💡 納得'}</span>
                       <span>{fund.funny_count || 0}</span>
                     </button>
                     <span className="text-xs text-indigo-600 font-semibold">詳細を見る →</span>
@@ -626,7 +617,6 @@ export default function Home() {
           )}
         </section>
 
-        {/* 📋 フッター */}
         <footer className="pt-8 pb-4 text-center text-[11px] text-slate-400 space-y-3 border-t border-slate-200">
           <div className="pb-2">
             <a

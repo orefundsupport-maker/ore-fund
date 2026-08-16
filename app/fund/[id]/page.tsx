@@ -38,7 +38,7 @@ const OHTANI_FUND_EXAMPLE: Fund = {
   title: '大谷CM採用企業ポートフォリオ',
   author: '大谷ファン',
   created_at: '2026-08-01T00:00:00.000Z',
-  funny_count: 42,
+  funny_count: 0,
   description:
     '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
   items: [
@@ -102,12 +102,21 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
   const [hoveredItem, setHoveredItem] = useState<{ name: string; ratio: number; color: string } | null>(null);
+  const [reactedFunds, setReactedFunds] = useState<string[]>([]);
 
-  // 💬 サクラコメントを完全削除（空配列で初期化）
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem('reacted_funds');
+      if (saved) {
+        setReactedFunds(JSON.parse(saved));
+      }
+    } catch {
+      // ignore
+    }
+
     async function fetchFund() {
       setLoading(true);
 
@@ -118,7 +127,6 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
         .single();
 
       if (error || !data) {
-        console.warn('Supabaseからの取得に失敗したため、例を表示します:', error);
         setFund(OHTANI_FUND_EXAMPLE);
       } else {
         setFund(data);
@@ -132,7 +140,15 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
   }, [fundId]);
 
   const handleFunnyClick = async () => {
-    if (!fund) return;
+    if (!fund || reactedFunds.includes(fund.id)) return;
+
+    const nextReacted = [...reactedFunds, fund.id];
+    setReactedFunds(nextReacted);
+    try {
+      localStorage.setItem('reacted_funds', JSON.stringify(nextReacted));
+    } catch {
+      // ignore
+    }
 
     const newCount = (fund.funny_count || 0) + 1;
     setFund({ ...fund, funny_count: newCount });
@@ -219,6 +235,7 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
 
   let currentAngle = 0;
   const formattedCreatedDate = formatDate(fund.created_at);
+  const hasReacted = reactedFunds.includes(fund.id);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
@@ -280,7 +297,6 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            {/* 🍕 大型円グラフ */}
             {chartType === 'pie' ? (
               <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                 <div className="relative w-80 h-80 flex items-center justify-center">
@@ -365,7 +381,6 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             )}
 
-            {/* 銘柄一覧 */}
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
               {formattedItems.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center p-3 text-sm bg-white">
@@ -396,10 +411,15 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
           <div className="pt-2 flex justify-between items-center border-t border-slate-100">
             <button
               onClick={handleFunnyClick}
-              className="flex items-center gap-2 text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-5 py-2.5 rounded-full transition active:scale-95"
+              disabled={hasReacted}
+              className={`flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-full transition ${
+                hasReacted
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95'
+              }`}
             >
-              <span>💡 おもしろ！</span>
-              <span className="bg-amber-200/60 text-amber-900 px-2 py-0.5 rounded-full text-xs">
+              <span>{hasReacted ? '💡 納得済' : '💡 納得'}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs ${hasReacted ? 'bg-slate-200 text-slate-600' : 'bg-amber-200/60 text-amber-900'}`}>
                 {fund.funny_count || 0}
               </span>
             </button>
@@ -407,7 +427,6 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </article>
 
-        {/* 💬 コメントセクション（サクラなし） */}
         <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4">
           <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
             <span>💬 コメント</span>
