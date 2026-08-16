@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://orefund.netlify.app"),
+  metadataBase: new URL('[https://ore-fund.vercel.app](https://ore-fund.vercel.app)')
   title: {
     default: "俺ファンド - 理想の仮想ポートフォリオ作成・共有サービス",
     template: "%s | 俺ファンド",
