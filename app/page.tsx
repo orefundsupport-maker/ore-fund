@@ -187,7 +187,7 @@ export default function Home() {
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
 
   const [chartTypes, setChartTypes] = useState<Record<string, 'pie' | 'bar'>>({});
-  const [hoveredItems, setHoveredItems] = useState<Record<string, (FundItem & { ratio: number }) | null>>({});
+  const [hoveredItems, setHoveredItems] = useState<Record<string, (FundItem & { ratio: number; displayAmount: number }) | null>>({});
 
   useEffect(() => {
     try {
@@ -353,45 +353,44 @@ export default function Home() {
 
               const itemsList = fund.items || [];
 
-              const mergedGroup: { name: string; ratio: number; color: string; price?: number; shares?: number; amount?: number }[] = [];
-              const nameIndexMap = new Map<string, number>();
-
-              const calculatedTotal = fund.total_amount || itemsList.reduce((sum, item) => {
-                const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
-                return sum + itemAmt;
-              }, 0);
-
-              itemsList.forEach((item, idx) => {
+              // 金額・比率の切り捨て計算
+              const formattedItems = itemsList.map((item, idx) => {
                 const name = (item.name || `銘柄${idx + 1}`).trim();
-                const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
-                let itemRatio = Number(item.ratio || 0);
-
-                if (!itemRatio && calculatedTotal > 0) {
-                  itemRatio = Math.round((itemAmt / calculatedTotal) * 100);
+                const price = item.price ? Number(item.price) : undefined;
+                const shares = item.shares ? Number(item.shares) : undefined;
+                let amount = item.amount ? Math.floor(Number(item.amount)) : 0;
+                if (!amount && price !== undefined && shares !== undefined) {
+                  amount = Math.floor(price * shares);
                 }
-
-                if (nameIndexMap.has(name)) {
-                  const targetIdx = nameIndexMap.get(name)!;
-                  mergedGroup[targetIdx].ratio += itemRatio;
-                  if (itemAmt) mergedGroup[targetIdx].amount = (mergedGroup[targetIdx].amount || 0) + itemAmt;
-                } else {
-                  nameIndexMap.set(name, mergedGroup.length);
-                  mergedGroup.push({
-                    name,
-                    ratio: itemRatio,
-                    price: item.price,
-                    shares: item.shares,
-                    amount: itemAmt,
-                    color: item.color || DEFAULT_COLORS[mergedGroup.length % DEFAULT_COLORS.length],
-                  });
-                }
+                return {
+                  name,
+                  price,
+                  shares,
+                  amount,
+                  ratio: item.ratio ? Math.floor(Number(item.ratio)) : 0,
+                  color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
+                };
               });
 
-              const totalRatioSum = mergedGroup.reduce((s, i) => s + i.ratio, 0) || 1;
-              const formattedItems = mergedGroup.map((i) => ({
-                ...i,
-                ratio: Math.round((i.ratio / totalRatioSum) * 100) || i.ratio,
-              }));
+              const totalAmount = fund.total_amount
+                ? Math.floor(Number(fund.total_amount))
+                : Math.floor(formattedItems.reduce((s, i) => s + (i.amount || 0), 0));
+
+              // 各銘柄の表示用比率（切り捨て）と、SVG角度計算用ウェイト
+              const weightTotal = totalAmount > 0
+                ? totalAmount
+                : formattedItems.reduce((s, i) => s + (i.ratio || 1), 0) || 1;
+
+              const displayItems = formattedItems.map((item) => {
+                const itemRatio = totalAmount > 0
+                  ? Math.floor((item.amount / totalAmount) * 100)
+                  : item.ratio;
+                return {
+                  ...item,
+                  displayRatio: itemRatio,
+                  weight: totalAmount > 0 ? item.amount : (item.ratio || 1),
+                };
+              });
 
               let currentAngle = 0;
               const formattedCreatedDate = formatDate(fund.created_at);
@@ -462,10 +461,11 @@ export default function Home() {
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                         <div className="relative w-80 h-80 flex items-center justify-center">
                           <svg viewBox="0 0 200 200" className="w-full h-full">
-                            {formattedItems.map((item, idx) => {
-                              if (item.ratio <= 0) return null;
+                            {displayItems.map((item, idx) => {
+                              if (item.weight <= 0) return null;
 
-                              const sliceAngle = (item.ratio / 100) * 360;
+                              // 360度を正確な割合で分割し隙間をゼロに
+                              const sliceAngle = (item.weight / weightTotal) * 360;
                               const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
 
                               const startAngle = currentAngle;
@@ -473,7 +473,6 @@ export default function Home() {
                               currentAngle += safeAngle;
 
                               const isHovered = activeHoveredItem?.name === item.name;
-
                               const outerR = isHovered ? 92 : 86;
                               const innerR = 48;
 
@@ -490,7 +489,10 @@ export default function Home() {
                                   }}
                                   onMouseEnter={(e) => {
                                     e.stopPropagation();
-                                    setHoveredItems((prev) => ({ ...prev, [fund.id]: item }));
+                                    setHoveredItems((prev) => ({
+                                      ...prev,
+                                      [fund.id]: { ...item, ratio: item.displayRatio, displayAmount: item.amount },
+                                    }));
                                   }}
                                   onMouseLeave={(e) => {
                                     e.stopPropagation();
@@ -537,9 +539,9 @@ export default function Home() {
                               </span>
                             </div>
                           ) : (
-                            calculatedTotal > 0 && (
+                            totalAmount > 0 && (
                               <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-100">
-                                合計設定額: ¥{calculatedTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                                合計設定額: ¥{totalAmount.toLocaleString()}
                               </span>
                             )
                           )}
@@ -547,24 +549,27 @@ export default function Home() {
                       </div>
                     ) : (
                       <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner my-2">
-                        {formattedItems.map((item, idx) => (
+                        {displayItems.map((item, idx) => (
                           <div
                             key={idx}
-                            style={{ width: `${item.ratio}%`, backgroundColor: item.color }}
-                            title={`${item.name}: ${item.ratio}%`}
+                            style={{ width: `${(item.weight / weightTotal) * 100}%`, backgroundColor: item.color }}
+                            title={`${item.name}: ${item.displayRatio}%`}
                           />
                         ))}
                       </div>
                     )}
 
                     <div className="flex flex-wrap gap-x-2.5 gap-y-1.5 text-xs text-slate-600 pt-1">
-                      {formattedItems.map((item, idx) => {
+                      {displayItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;
                         return (
                           <div
                             key={idx}
                             onMouseEnter={() =>
-                              setHoveredItems((prev) => ({ ...prev, [fund.id]: item }))
+                              setHoveredItems((prev) => ({
+                                ...prev,
+                                [fund.id]: { ...item, ratio: item.displayRatio, displayAmount: item.amount },
+                              }))
                             }
                             onMouseLeave={() =>
                               setHoveredItems((prev) => ({ ...prev, [fund.id]: null }))
@@ -588,7 +593,7 @@ export default function Home() {
                               </span>
                             )}
                             <span className="font-bold text-slate-800">
-                              {item.ratio}%
+                              {item.displayRatio}%
                             </span>
                           </div>
                         );

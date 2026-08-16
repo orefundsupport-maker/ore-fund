@@ -193,57 +193,54 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   const itemsList = fund.items || [];
-  const mergedGroup: { name: string; ratio: number; color: string; price?: number; shares?: number; amount?: number }[] = [];
-  const nameIndexMap = new Map<string, number>();
 
-  const calculatedTotal = fund.total_amount || itemsList.reduce((sum, item) => {
-    const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
-    return sum + itemAmt;
-  }, 0);
-
-  itemsList.forEach((item, idx) => {
+  const formattedItems = itemsList.map((item, idx) => {
     const name = (item.name || `銘柄${idx + 1}`).trim();
-    const itemAmt = item.amount || (Number(item.price || 0) * Number(item.shares || 0));
-    let itemRatio = Number(item.ratio || 0);
-
-    if (!itemRatio && calculatedTotal > 0) {
-      itemRatio = Math.round((itemAmt / calculatedTotal) * 100);
+    const price = item.price ? Number(item.price) : undefined;
+    const shares = item.shares ? Number(item.shares) : undefined;
+    let amount = item.amount ? Math.floor(Number(item.amount)) : 0;
+    if (!amount && price !== undefined && shares !== undefined) {
+      amount = Math.floor(price * shares);
     }
-
-    if (nameIndexMap.has(name)) {
-      const targetIdx = nameIndexMap.get(name)!;
-      mergedGroup[targetIdx].ratio += itemRatio;
-      if (itemAmt) mergedGroup[targetIdx].amount = (mergedGroup[targetIdx].amount || 0) + itemAmt;
-    } else {
-      nameIndexMap.set(name, mergedGroup.length);
-      mergedGroup.push({
-        name,
-        ratio: itemRatio,
-        price: item.price,
-        shares: item.shares,
-        amount: itemAmt,
-        color: item.color || DEFAULT_COLORS[mergedGroup.length % DEFAULT_COLORS.length],
-      });
-    }
+    return {
+      name,
+      price,
+      shares,
+      amount,
+      ratio: item.ratio ? Math.floor(Number(item.ratio)) : 0,
+      color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
+    };
   });
 
-  const totalRatioSum = mergedGroup.reduce((s, i) => s + i.ratio, 0) || 1;
-  const formattedItems = mergedGroup.map((i) => ({
-    ...i,
-    ratio: Math.round((i.ratio / totalRatioSum) * 100) || i.ratio,
-  }));
+  const totalAmount = fund.total_amount
+    ? Math.floor(Number(fund.total_amount))
+    : Math.floor(formattedItems.reduce((s, i) => s + (i.amount || 0), 0));
+
+  const weightTotal = totalAmount > 0
+    ? totalAmount
+    : formattedItems.reduce((s, i) => s + (i.ratio || 1), 0) || 1;
+
+  const displayItems = formattedItems.map((item) => {
+    const itemRatio = totalAmount > 0
+      ? Math.floor((item.amount / totalAmount) * 100)
+      : item.ratio;
+    return {
+      ...item,
+      displayRatio: itemRatio,
+      weight: totalAmount > 0 ? item.amount : (item.ratio || 1),
+    };
+  });
 
   let currentAngle = 0;
   const formattedCreatedDate = formatDate(fund.created_at);
   const hasReacted = reactedFunds.includes(fund.id);
 
-  // 𝕏 シェア用の投稿テキスト生成＆起動処理
   const handleShareToX = () => {
-    const topItemsText = formattedItems
+    const topItemsText = displayItems
       .slice(0, 4)
-      .map((item) => `・${item.name} ${item.ratio}%`)
+      .map((item) => `・${item.name} ${item.displayRatio}%`)
       .join('\n');
-    const remainingText = formattedItems.length > 4 ? `\n・他${formattedItems.length - 4}銘柄` : '';
+    const remainingText = displayItems.length > 4 ? `\n・他${displayItems.length - 4}銘柄` : '';
 
     const text = `📊「${fund.title}」を作りました！\n\n${topItemsText}${remainingText}\n\nあなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
     const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://orefund.netlify.app/fund/${fund.id}`;
@@ -316,10 +313,10 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
               <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                 <div className="relative w-80 h-80 flex items-center justify-center">
                   <svg viewBox="0 0 200 200" className="w-full h-full">
-                    {formattedItems.map((item, idx) => {
-                      if (item.ratio <= 0) return null;
+                    {displayItems.map((item, idx) => {
+                      if (item.weight <= 0) return null;
 
-                      const sliceAngle = (item.ratio / 100) * 360;
+                      const sliceAngle = (item.weight / weightTotal) * 360;
                       const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
 
                       const startAngle = currentAngle;
@@ -341,7 +338,7 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
                           style={{
                             opacity: hoveredItem && !isHovered ? 0.35 : 1,
                           }}
-                          onMouseEnter={() => setHoveredItem(item)}
+                          onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color })}
                           onMouseLeave={() => setHoveredItem(null)}
                         />
                       );
@@ -376,9 +373,9 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
                       </span>
                     </div>
                   ) : (
-                    calculatedTotal > 0 && (
+                    totalAmount > 0 && (
                       <span className="text-xs font-bold text-slate-600">
-                        合計設定額: ¥{calculatedTotal.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        合計設定額: ¥{totalAmount.toLocaleString()}
                       </span>
                     )
                   )}
@@ -386,18 +383,18 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             ) : (
               <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner my-2">
-                {formattedItems.map((item, idx) => (
+                {displayItems.map((item, idx) => (
                   <div
                     key={idx}
-                    style={{ width: `${item.ratio}%`, backgroundColor: item.color }}
-                    title={`${item.name}: ${item.ratio}%`}
+                    style={{ width: `${(item.weight / weightTotal) * 100}%`, backgroundColor: item.color }}
+                    title={`${item.name}: ${item.displayRatio}%`}
                   />
                 ))}
               </div>
             )}
 
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
-              {formattedItems.map((item, idx) => (
+              {displayItems.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center p-3 text-sm bg-white">
                   <div className="flex items-center gap-2">
                     <span
@@ -408,22 +405,21 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
                       <span className="font-medium text-slate-800">{item.name}</span>
                       {item.price && item.shares ? (
                         <span className="text-xs text-slate-400 block">
-                          ¥{item.price.toLocaleString(undefined, { maximumFractionDigits: 1 })} × {item.shares}株
+                          ¥{item.price.toLocaleString()} × {item.shares}株
                         </span>
                       ) : item.amount ? (
                         <span className="text-xs text-slate-400 block">
-                          ¥{item.amount.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                          ¥{item.amount.toLocaleString()}
                         </span>
                       ) : null}
                     </div>
                   </div>
-                  <span className="font-bold text-slate-900">{item.ratio}%</span>
+                  <span className="font-bold text-slate-900">{item.displayRatio}%</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* 𝕏 でシェアボタン */}
           <div className="pt-2">
             <button
               onClick={handleShareToX}

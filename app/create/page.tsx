@@ -4,76 +4,14 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 
-interface StockItem {
-  id: string;
+type FundItem = {
   name: string;
-  price: number;
-  shares: number;
+  price: string;
+  shares: string;
   color: string;
-}
-
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
-
-// 代表的な主要銘柄コード対応表
-const STOCK_CODE_MAP: Record<string, string> = {
-  '7203': 'トヨタ自動車',
-  '6758': 'ソニーグループ',
-  '7974': '任天堂',
-  '9984': 'ソフトバンクグループ',
-  '6861': 'キーエンス',
-  '8035': '東京エレクトロン',
-  '6098': 'リクルートHD',
-  '9432': '日本電信電話 (NTT)',
-  '8306': '三菱UFJフィナンシャルG',
-  '8316': '三井住友フィナンシャルG',
-  '8411': 'みずほフィナンシャルG',
-  '4063': '信越化学工業',
-  '6501': '日立製作所',
-  '6902': 'デンソー',
-  '4502': '武田薬品工業',
-  '4519': '中外製薬',
-  '4568': '第一三共',
-  '9983': 'ファーストリテイリング',
-  '8058': '三菱商事',
-  '8001': '伊藤忠商事',
-  '8031': '三井物産',
-  '8053': '住友商事',
-  '8002': '丸紅',
-  '7267': '本田技研工業 (ホンダ)',
-  '6981': '村田製作所',
-  '7741': 'HOYA',
-  '6367': 'ダイキン工業',
-  '4911': '資生堂',
-  '4916': 'コーセー',
-  '2593': '伊藤園',
-  '8050': 'セイコーグループ',
-  '9297': 'ギフトHD',
-  '9656': 'グリーンランド',
 };
 
-function generateTrip(inputName: string): string {
-  const trimmed = inputName.trim();
-  if (!trimmed) return '名無し';
-
-  const hashIndex = trimmed.indexOf('#');
-  if (hashIndex === -1) {
-    return trimmed;
-  }
-
-  const namePart = trimmed.substring(0, hashIndex) || '名無し';
-  const keyPart = trimmed.substring(hashIndex + 1);
-
-  if (!keyPart) return namePart;
-
-  let hash = 0;
-  for (let i = 0; i < keyPart.length; i++) {
-    hash = (hash << 5) - hash + keyPart.charCodeAt(i);
-    hash |= 0;
-  }
-  const tripKey = Math.abs(hash).toString(36).substring(0, 8);
-
-  return `${namePart} ◆${tripKey}`;
-}
+const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
 function getDonutSlicePath(
   cx: number,
@@ -110,367 +48,264 @@ function getDonutSlicePath(
 export default function CreateFundPage() {
   const router = useRouter();
 
-  const [rawAuthor, setRawAuthor] = useState('');
   const [title, setTitle] = useState('');
+  const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
-  const [chartType, setChartType] = useState<'bar' | 'pie'>('pie');
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [items, setItems] = useState<StockItem[]>([
-    { id: '1', name: '任天堂', price: 8000, shares: 10, color: COLORS[0] },
-    { id: '2', name: 'ソニーグループ', price: 3000, shares: 40, color: COLORS[1] },
+  const [items, setItems] = useState<FundItem[]>([
+    { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
+    { name: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
   ]);
 
-  const displayAuthor = generateTrip(rawAuthor);
-  const totalAmount = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.shares || 0), 0);
+  const handleAddItem = () => {
+    const nextColor = DEFAULT_COLORS[items.length % DEFAULT_COLORS.length];
+    setItems([...items, { name: '', price: '', shares: '1', color: nextColor }]);
+  };
 
-  const calculatedItems = items.map((item) => {
-    const amount = Number(item.price || 0) * Number(item.shares || 0);
-    const ratio = totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : 0;
-    return { ...item, amount, ratio };
+  const handleRemoveItem = (index: number) => {
+    if (items.length <= 1) return;
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleItemChange = (index: number, field: keyof FundItem, value: string) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+    setItems(newItems);
+  };
+
+  // 各銘柄の金額（株価 × 株数）は小数点以下切り捨て
+  const calculatedItems = items.map((item, idx) => {
+    const p = parseFloat(item.price) || 0;
+    const s = parseFloat(item.shares) || 0;
+    const amount = Math.floor(p * s);
+    return {
+      name: item.name.trim() || `銘柄${idx + 1}`,
+      price: p,
+      shares: s,
+      amount,
+      color: item.color,
+    };
   });
 
-  const handleAddItem = () => {
-    if (items.length >= 8) return;
-    const newId = Date.now().toString();
-    const nextColor = COLORS[items.length % COLORS.length];
-    setItems([...items, { id: newId, name: '', price: 0, shares: 0, color: nextColor }]);
-  };
-
-  const handleRemoveItem = (id: string) => {
-    if (items.length <= 1) return;
-    setItems(items.filter((item) => item.id !== id));
-  };
-
-  const handleNameChange = (id: string, value: string) => {
-    const trimmed = value.trim();
-    const convertedName = STOCK_CODE_MAP[trimmed] || value;
-    setItems(items.map((item) => (item.id === id ? { ...item, name: convertedName } : item)));
-  };
-
-  const handleItemChange = (id: string, field: keyof StockItem, value: string | number) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-
-    if (totalAmount <= 0) {
-      alert('株数と単価を入力して、合計額が0円より大きくなるように設定してください。');
-      return;
-    }
-
-    setLoading(true);
-
-    const { error } = await supabase.from('funds').insert([
-      {
-        title,
-        author: displayAuthor,
-        period: '長期',
-        funny_count: 0,
-        description: description || '説明はありません。',
-        total_amount: totalAmount,
-        items: calculatedItems,
-      },
-    ]);
-
-    setLoading(false);
-
-    if (error) {
-      console.error('保存エラー詳細:', error);
-      setErrorMsg(`投稿に失敗しました: ${error.message}`);
-    } else {
-      router.push('/');
-    }
-  };
+  const totalAmount = Math.floor(calculatedItems.reduce((sum, item) => sum + item.amount, 0));
 
   let currentAngle = 0;
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      alert('ファンド名を入力してください。');
+      return;
+    }
+
+    const validItems = calculatedItems.filter((i) => i.amount > 0);
+    if (validItems.length === 0) {
+      alert('株価と株数を入力して、合計金額が1円以上になるように設定してください。');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const formattedItemsToSave = validItems.map((item) => ({
+      name: item.name,
+      price: item.price,
+      shares: item.shares,
+      amount: item.amount,
+      ratio: totalAmount > 0 ? Math.floor((item.amount / totalAmount) * 100) : 0,
+      color: item.color,
+    }));
+
+    const { data, error } = await supabase
+      .from('funds')
+      .insert([
+        {
+          title: title.trim(),
+          author: author.trim() || '匿名',
+          description: description.trim(),
+          total_amount: totalAmount,
+          funny_count: 0,
+          items: formattedItemsToSave,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('作成エラー:', error);
+      alert('ファンドの作成に失敗しました。もう一度お試しください。');
+      setIsSubmitting(false);
+      return;
+    }
+
+    router.push(`/fund/${data.id}`);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-16">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push('/')}
           className="text-sm font-medium text-slate-600 hover:text-slate-900"
         >
           ← 戻る
         </button>
-        <h1 className="text-base font-bold text-slate-800">新規ファンド作成</h1>
+        <h1 className="text-base font-bold text-slate-800">ファンド作成</h1>
         <div className="w-10" />
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {errorMsg && (
-            <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl font-bold leading-relaxed">
-              {errorMsg}
-            </div>
-          )}
-
-          <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
-              1. ファンド基本情報
-            </h2>
-
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold text-slate-700">📌 基本情報</h2>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                投稿者名 （空欄で「名無し」 / `#`を付けて専用ID化）
-              </label>
-              <input
-                type="text"
-                placeholder="例：太郎#パスワード"
-                value={rawAuthor}
-                onChange={(e) => setRawAuthor(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              />
-              <div className="mt-1 text-[11px] text-slate-500">
-                表示名: <span className="font-bold text-indigo-600">@{displayAuthor}</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-slate-600 mb-1">
                 ファンド名 <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                required
-                placeholder="例：大谷CM採用企業ポートフォリオ"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                placeholder="例: 俺のAI成長ファンド"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
               />
             </div>
-
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                コンセプト・テーマの説明
-              </label>
+              <label className="block text-xs font-bold text-slate-600 mb-1">投稿者名</label>
+              <input
+                type="text"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder="例: チャレンジャー（空欄なら匿名）"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">ファンドの説明・こだわり</label>
               <textarea
-                rows={3}
-                placeholder="例：この銘柄を選んだ理由や、どんなコンセプトなのかを熱く語ってください！"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                placeholder="このファンドの狙いや選定理由を自由に書いてください"
+                rows={3}
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-          </section>
+          </div>
 
-          <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
-                2. 構成銘柄 ＆ 金額設定
-              </h2>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-50 text-indigo-700">
-                合計: ¥{Math.round(totalAmount).toLocaleString()}
+              <h2 className="text-sm font-bold text-slate-700">📊 組み入れ銘柄</h2>
+              <span className="text-xs font-bold text-indigo-600">
+                合計: ¥{totalAmount.toLocaleString()}
               </span>
             </div>
 
-            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setChartType('pie')}
-                className={`flex-1 py-1.5 rounded-lg transition ${
-                  chartType === 'pie'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                🍕 円グラフ
-              </button>
-              <button
-                type="button"
-                onClick={() => setChartType('bar')}
-                className={`flex-1 py-1.5 rounded-lg transition ${
-                  chartType === 'bar'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                📊 バー表示
-              </button>
-            </div>
-
-            <div className="pt-2 pb-4 px-2 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center justify-center space-y-3">
-              {chartType === 'pie' ? (
-                <div className="relative w-72 h-72 flex items-center justify-center">
-                  <svg viewBox="0 0 200 200" className="w-full h-full">
-                    {calculatedItems.map((item, idx) => {
-                      if (item.ratio <= 0) return null;
-                      const sliceAngle = (item.ratio / 100) * 360;
-                      const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
-
-                      const startAngle = currentAngle;
-                      const endAngle = currentAngle + safeAngle;
-                      currentAngle += safeAngle;
-
-                      const pathData = getDonutSlicePath(100, 100, 86, 48, startAngle, endAngle);
-
-                      return (
-                        <path
-                          key={idx}
-                          d={pathData}
-                          fill={item.color}
-                          className="transition-all duration-200"
-                        />
-                      );
-                    })}
-                  </svg>
-                </div>
-              ) : (
-                <div className="w-full space-y-2 py-4 px-2">
-                  <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-200 shadow-inner">
-                    {calculatedItems.map((item, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          width: `${Math.max(0, Math.min(100, item.ratio))}%`,
-                          backgroundColor: item.color,
-                        }}
-                        className="transition-all duration-200"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="text-center">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                  合計設定額
-                </span>
-                <span className="text-xl font-extrabold text-slate-900 tracking-tight">
-                  ¥{totalAmount.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 pt-2 text-xs text-slate-600 border-t border-slate-200/60 w-full">
-                {calculatedItems.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-100 shadow-2xs">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="font-medium text-slate-700">
-                      {item.name || `銘柄${idx + 1}`}: <strong className="text-slate-900">¥{item.amount.toLocaleString(undefined, { maximumFractionDigits: 1 })} ({item.ratio}%)</strong>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4 pt-2">
-              {/* 💡 4桁コードに関する注記メッセージ */}
-              <div className="text-[11px] text-slate-400 font-medium px-1">
-                💡 銘柄名は直接入力できるほか、主要銘柄の4桁コード（例: 7203、7974）を入力すると自動で社名に変換されます。
-              </div>
-
-              {items.map((item, index) => {
-                const amount = Number(item.price || 0) * Number(item.shares || 0);
-                const ratio = totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : 0;
-
-                return (
-                  <div key={item.id} className="p-3 bg-slate-50 rounded-xl space-y-3 border border-slate-100">
-                    <div className="flex gap-2 items-center">
+            <div className="space-y-3">
+              {items.map((item, idx) => (
+                <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-grow">
                       <span
-                        className="w-3.5 h-3.5 rounded-full flex-shrink-0"
+                        className="w-3 h-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: item.color }}
                       />
                       <input
                         type="text"
-                        required
-                        placeholder={`銘柄名 または 4桁コード`}
+                        placeholder={`銘柄名（例: トヨタ自動車）`}
                         value={item.name}
-                        onChange={(e) => handleNameChange(item.id, e.target.value)}
-                        className="flex-grow px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                        onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
-                      <span className="text-xs font-bold text-slate-500 min-w-[50px] text-right">
-                        {ratio}%
-                      </span>
-                      {items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(item.id)}
-                          className="text-slate-400 hover:text-red-500 px-1 font-bold text-lg leading-none"
-                        >
-                          ×
-                        </button>
-                      )}
                     </div>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(idx)}
+                        className="text-slate-400 hover:text-red-500 text-xs px-1 font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <label className="block text-slate-500 mb-1 font-medium">
-                          購入単価 (円) <span className="text-[10px] text-slate-400">※小数第1位対応</span>
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          required
-                          placeholder="例: 5000.5"
-                          value={item.price || ''}
-                          onChange={(e) => handleItemChange(item.id, 'price', parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-slate-500 mb-1 font-medium">株数</label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          required
-                          placeholder="例: 100"
-                          value={item.shares || ''}
-                          onChange={(e) => handleItemChange(item.id, 'shares', parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                        />
-                      </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold mb-0.5">想定株価 (円)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="例: 2500.5"
+                        value={item.price}
+                        onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
                     </div>
-
-                    <div className="text-right text-xs text-slate-500 font-medium">
-                      小計: <span className="font-bold text-slate-800">¥{amount.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold mb-0.5">保有株数 (小数可)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="例: 1.5"
+                        value={item.shares}
+                        onChange={(e) => handleItemChange(idx, 'shares', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
                     </div>
                   </div>
-                );
-              })}
-            </div>
 
-            {items.length < 8 && (
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="w-full py-2.5 border border-dashed border-slate-300 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-              >
-                ＋ 銘柄を追加する（最大8件）
-              </button>
-            )}
-          </section>
-
-          <section className="space-y-3">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
-              <p className="font-bold mb-0.5">🔒 改ざん防止ルールについて</p>
-              <p>
-                「俺ファンド」では、予測や実績の信頼性を担保するため、一度投稿したファンドの修正・削除はできません。
-              </p>
+                  {calculatedItems[idx].amount > 0 && (
+                    <div className="text-right text-[11px] font-bold text-slate-500 pt-0.5">
+                      金額: ¥{calculatedItems[idx].amount.toLocaleString()} ({totalAmount > 0 ? Math.floor((calculatedItems[idx].amount / totalAmount) * 100) : 0}%)
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
             <button
-              type="submit"
-              disabled={totalAmount <= 0 || loading}
-              className={`w-full py-3.5 rounded-xl font-bold text-white shadow-md transition ${
-                totalAmount > 0 && !loading
-                  ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-98'
-                  : 'bg-slate-300 cursor-not-allowed'
-              }`}
+              type="button"
+              onClick={handleAddItem}
+              className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs rounded-xl transition"
             >
-              {loading ? '投稿中...' : 'この内容でファンドを投稿する 🚀'}
+              ＋ 銘柄を追加する
             </button>
-          </section>
+          </div>
+
+          {/* プレビュー円グラフ（隙間なし） */}
+          {totalAmount > 0 && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center">
+              <span className="text-xs font-bold text-slate-400 mb-2">構成プレビュー</span>
+              <div className="relative w-48 h-48">
+                <svg viewBox="0 0 200 200" className="w-full h-full">
+                  {calculatedItems.map((item, idx) => {
+                    if (item.amount <= 0) return null;
+                    const sliceAngle = (item.amount / totalAmount) * 360;
+                    const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
+                    const startAngle = currentAngle;
+                    const endAngle = currentAngle + safeAngle;
+                    currentAngle += safeAngle;
+
+                    return (
+                      <path
+                        key={idx}
+                        d={getDonutSlicePath(100, 100, 86, 48, startAngle, endAngle)}
+                        fill={item.color}
+                      />
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold py-3.5 px-4 rounded-2xl shadow-md transition text-sm active:scale-98"
+          >
+            {isSubmitting ? '作成中...' : '🚀 ファンドを公開する'}
+          </button>
         </form>
       </main>
     </div>
