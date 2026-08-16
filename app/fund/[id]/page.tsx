@@ -243,7 +243,7 @@ export default function FundDetailPage({ params }: { params: Promise<{ id: strin
     const remainingText = displayItems.length > 4 ? `\n・他${displayItems.length - 4}銘柄` : '';
 
     const text = `📊「${fund.title}」を作りました！\n\n${topItemsText}${remainingText}\n\nあなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://orefund.netlify.app/fund/${fund.id}`;
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://ore-fund.vercel.app/fund/${fund.id}`;
 
     const twitterIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
     window.open(twitterIntent, '_blank', 'noopener,noreferrer');
