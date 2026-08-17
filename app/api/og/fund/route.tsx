@@ -4,10 +4,8 @@ import { supabase } from '@/app/lib/supabase';
 
 export const runtime = 'edge';
 
-// デフォルトカラー（色がない場合のフォールバック）
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444'];
 
-// 円グラフ（ドーナツスライス）の SVG Path を計算する関数
 function getDonutSlicePath(
   cx: number, cy: number, rOuter: number, rInner: number,
   startAngleDeg: number, endAngleDeg: number
@@ -44,7 +42,6 @@ export async function GET(req: NextRequest) {
     return new Response('Missing Fund ID', { status: 400 });
   }
 
-  // Supabase からファンド情報を取得
   const { data: fund } = await supabase
     .from('funds')
     .select('*')
@@ -60,10 +57,8 @@ export async function GET(req: NextRequest) {
   const description = fund.description || '仮想ポートフォリオ';
   const items: Array<{ name: string; amount: number; color?: string; ratio?: number }> = fund.items || [];
 
-  // 合計金額の計算
   const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
 
-  // ドーナツチャートの描画計算
   let currentAngle = 0;
   const slices = items.map((item, idx) => {
     const amount = item.amount || 0;
@@ -91,13 +86,12 @@ export async function GET(req: NextRequest) {
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
-          justify: 'space-between',
-          backgroundColor: '#0f172a', // ダークなスレート紺背景
+          justifyContent: 'space-between',
+          backgroundColor: '#0f172a',
           padding: '50px 60px',
           fontFamily: 'sans-serif',
         }}
       >
-        {/* 左側：ファンド情報 */}
         <div
           style={{
             display: 'flex',
@@ -107,14 +101,12 @@ export async function GET(req: NextRequest) {
             height: '100%',
           }}
         >
-          {/* ヘッダーロゴ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: 24, fontWeight: 'bold', color: '#818cf8' }}>
               📈 俺ファンド
             </span>
           </div>
 
-          {/* タイトル＆説明 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div
               style={{
@@ -147,7 +139,6 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
 
-          {/* 作成者 */}
           <div
             style={{
               display: 'flex',
@@ -166,7 +157,6 @@ export async function GET(req: NextRequest) {
           </div>
         </div>
 
-        {/* 右側：円グラフ（ドーナツチャート）＆凡例 */}
         <div
           style={{
             display: 'flex',
@@ -181,7 +171,6 @@ export async function GET(req: NextRequest) {
             border: '1px solid #334155',
           }}
         >
-          {/* SVGドーナツチャート */}
           <div style={{ display: 'flex', position: 'relative', width: 220, height: 220 }}>
             <svg width="220" height="220" viewBox="0 0 300 300">
               {slices.map((s, i) => (
@@ -208,7 +197,6 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
 
-          {/* 銘柄リスト（上位3件まで表示） */}
           <div
             style={{
               display: 'flex',
