@@ -32,13 +32,20 @@ export async function GET(request: Request) {
     const author = searchParams.get('author') || '名無し投資家';
     const desc = searchParams.get('desc') || 'オリジナル仮想ポートフォリオ';
 
+    // 文字列の重複除去
     const allText = Array.from(
       new Set(
         `俺ファンド|ポートフォリオ共有${title}${desc}作成者:${author}ore-fund.vercel.app`
       )
     ).join('');
 
-    const fontData = await getNotoSansJP(allText, 700);
+    let fontData: ArrayBuffer | null = null;
+    try {
+      fontData = await getNotoSansJP(allText, 700);
+    } catch (fontErr) {
+      console.error('Font fetch error:', fontErr);
+      // フォント取得に失敗しても落とさず継続
+    }
 
     return new ImageResponse(
       (
@@ -51,7 +58,7 @@ export async function GET(request: Request) {
             justifyContent: 'space-between',
             backgroundColor: '#0f172a',
             padding: '60px 80px',
-            fontFamily: '"Noto Sans JP"',
+            fontFamily: fontData ? '"Noto Sans JP"' : 'sans-serif',
           }}
         >
           <div
@@ -77,7 +84,13 @@ export async function GET(request: Request) {
             >
               {title}
             </div>
-            <div style={{ fontSize: 26, color: '#94a3b8', display: 'flex' }}>
+            <div
+              style={{
+                fontSize: 26,
+                color: '#94a3b8',
+                display: 'flex',
+              }}
+            >
               {desc}
             </div>
           </div>
@@ -106,14 +119,16 @@ export async function GET(request: Request) {
         headers: {
           'Cache-Control': 'public, immutable, no-transform, max-age=31536000',
         },
-        fonts: [
-          {
-            name: 'Noto Sans JP',
-            data: fontData,
-            style: 'normal',
-            weight: 700,
-          },
-        ],
+        fonts: fontData
+          ? [
+              {
+                name: 'Noto Sans JP',
+                data: fontData,
+                style: 'normal',
+                weight: 700,
+              },
+            ]
+          : undefined,
       }
     );
   } catch (e: any) {
