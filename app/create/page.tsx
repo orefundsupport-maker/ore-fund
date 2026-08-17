@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 
@@ -26,27 +26,11 @@ const RANDOM_AUTHORS = [
   '名無し投資家@ガチホ中',
 ];
 
-async function generateTrip(input: string): Promise<string> {
-  const trimmed = input.trim();
-  if (trimmed.includes('#')) {
-    const [name, key] = trimmed.split('#');
-    const authorName = name.trim() || '名無し投資家';
-    const tripKey = key.trim();
-    if (!tripKey) return authorName;
-    const msgBuffer = new TextEncoder().encode(tripKey);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const tripCode = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
-    return `${authorName} ◆${tripCode}`;
-  }
-  if (trimmed) return trimmed;
-  const baseName = RANDOM_AUTHORS[Math.floor(Math.random() * RANDOM_AUTHORS.length)];
-  const randomKey = Math.random().toString(36).substring(2, 10);
-  const msgBuffer = new TextEncoder().encode(randomKey);
+async function calculateTripCode(key: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(key);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const tripCode = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
-  return `${baseName} ◆${tripCode}`;
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
 }
 
 function getDonutSlicePath(
@@ -81,6 +65,8 @@ export default function CreateFundPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
+  const [previewAuthor, setPreviewAuthor] = useState('');
+  const [randomSeed, setRandomSeed] = useState<{ base: string; key: string }>({ base: '', key: '' });
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -88,6 +74,39 @@ export default function CreateFundPage() {
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
   ]);
+
+  const refreshRandomSeed = () => {
+    const base = RANDOM_AUTHORS[Math.floor(Math.random() * RANDOM_AUTHORS.length)];
+    const key = Math.random().toString(36).substring(2, 10);
+    setRandomSeed({ base, key });
+  };
+
+  useEffect(() => {
+    refreshRandomSeed();
+  }, []);
+
+  useEffect(() => {
+    async function updatePreview() {
+      const trimmed = author.trim();
+      if (trimmed.includes('#')) {
+        const [name, key] = trimmed.split('#');
+        const authorName = name.trim() || '名無し投資家';
+        const tripKey = key.trim();
+        if (!tripKey) {
+          setPreviewAuthor(authorName);
+        } else {
+          const code = await calculateTripCode(tripKey);
+          setPreviewAuthor(`${authorName} ◆${code}`);
+        }
+      } else if (trimmed) {
+        setPreviewAuthor(trimmed);
+      } else if (randomSeed.base && randomSeed.key) {
+        const code = await calculateTripCode(randomSeed.key);
+        setPreviewAuthor(`${randomSeed.base} ◆${code}`);
+      }
+    }
+    updatePreview();
+  }, [author, randomSeed]);
 
   const handleAddItem = () => {
     const nextColor = DEFAULT_COLORS[items.length % DEFAULT_COLORS.length];
@@ -135,7 +154,7 @@ export default function CreateFundPage() {
       return;
     }
     setIsSubmitting(true);
-    const finalAuthor = await generateTrip(author);
+    const finalAuthor = previewAuthor || '名無し投資家';
     const formattedItemsToSave = validItems.map((item) => ({
       name: item.name,
       price: item.price,
@@ -201,7 +220,7 @@ export default function CreateFundPage() {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-bold text-slate-600">投稿者名</label>
-                <span className="text-[10px] text-slate-400">#文字 でトリップ生成</span>
+                <span className="text-[10px] text-slate-400">#合言葉 でトリップ生成</span>
               </div>
               <input
                 type="text"
@@ -210,6 +229,24 @@ export default function CreateFundPage() {
                 placeholder="例: 投資マン#合言葉（空欄ならランダム名無し）"
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <span className="text-[11px] font-bold text-slate-500 flex-shrink-0">🏷️ 生成される名前:</span>
+                  <span className="text-xs font-extrabold text-indigo-600 truncate bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                    @{previewAuthor || '計算中...'}
+                  </span>
+                </div>
+                {!author && (
+                  <button
+                    type="button"
+                    onClick={refreshRandomSeed}
+                    className="text-[10px] bg-slate-200/70 hover:bg-slate-300 text-slate-600 font-bold px-2 py-1 rounded-lg transition flex-shrink-0"
+                    title="別のランダム名前に変更"
+                  >
+                    🎲 引き直す
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">ファンドの説明・こだわり</label>
