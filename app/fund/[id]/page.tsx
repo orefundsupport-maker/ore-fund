@@ -1,4 +1,3 @@
-// app/fund/[id]/page.tsx
 import { Metadata } from 'next';
 import { supabase } from '@/app/lib/supabase';
 import FundDetailContent from './FundDetailContent';
@@ -20,31 +19,39 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const author = fund?.author || '名無し投資家';
   const description = fund?.description || 'オリジナル仮想ポートフォリオプラットフォーム';
 
-  const ogUrl = new URL('https://ore-fund.vercel.app/api/og/fund');
-  ogUrl.searchParams.set('title', title);
-  ogUrl.searchParams.set('author', author);
-  ogUrl.searchParams.set('desc', description);
+  // クエリパラメータを確実にエンコードしてURLを生成
+  const paramsQuery = new URLSearchParams({
+    title,
+    author,
+    desc: description,
+  }).toString();
+
+  const imageUrl = `https://ore-fund.vercel.app/api/og/fund?${paramsQuery}`;
 
   return {
+    metadataBase: new URL('https://ore-fund.vercel.app'),
     title: `${title} | 俺ファンド`,
     description: description,
     openGraph: {
       title: `${title} | 俺ファンド`,
       description: description,
+      url: `/fund/${id}`,
+      siteName: '俺ファンド',
       images: [
         {
-          url: ogUrl.toString(),
+          url: imageUrl,
           width: 1200,
           height: 630,
           alt: title,
         },
       ],
+      type: 'article',
     },
     twitter: {
       card: 'summary_large_image',
       title: `${title} | 俺ファンド`,
       description: description,
-      images: [ogUrl.toString()],
+      images: [imageUrl],
     },
   };
 }
