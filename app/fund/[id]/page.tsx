@@ -8,7 +8,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  
+
   const { data: fund } = await supabase
     .from('funds')
     .select('title, author, description')
@@ -19,13 +19,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const author = fund?.author || '名無し投資家';
   const description = fund?.description || 'オリジナル仮想ポートフォリオプラットフォーム';
 
-  const paramsQuery = new URLSearchParams({
-    title,
-    author,
-    desc: description,
-  }).toString();
-
-  const imageUrl = `https://ore-fund.vercel.app/api/og/fund?${paramsQuery}`;
+  // APIルート側に id を渡す（円グラフ描画に必要）+ キャッシュ破棄用のパラメータ
+  const imageUrl = `https://ore-fund.vercel.app/api/og/fund?id=${id}&v=2`;
 
   return {
     metadataBase: new URL('https://ore-fund.vercel.app'),
