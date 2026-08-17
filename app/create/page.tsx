@@ -52,6 +52,7 @@ export default function CreateFundPage() {
   const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const [items, setItems] = useState<FundItem[]>([
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
@@ -66,6 +67,7 @@ export default function CreateFundPage() {
   const handleRemoveItem = (index: number) => {
     if (items.length <= 1) return;
     setItems(items.filter((_, i) => i !== index));
+    if (hoveredIndex === index) setHoveredIndex(null);
   };
 
   const handleItemChange = (index: number, field: keyof FundItem, value: string) => {
@@ -74,12 +76,12 @@ export default function CreateFundPage() {
     setItems(newItems);
   };
 
-  // 各銘柄の金額（株価 × 株数）は小数点以下切り捨て
   const calculatedItems = items.map((item, idx) => {
     const p = parseFloat(item.price) || 0;
     const s = parseFloat(item.shares) || 0;
     const amount = Math.floor(p * s);
     return {
+      index: idx,
       name: item.name.trim() || `銘柄${idx + 1}`,
       price: p,
       shares: s,
@@ -145,6 +147,7 @@ export default function CreateFundPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-16">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <button
+          type="button"
           onClick={() => router.push('/')}
           className="text-sm font-medium text-slate-600 hover:text-slate-900"
         >
@@ -202,65 +205,84 @@ export default function CreateFundPage() {
             </div>
 
             <div className="space-y-3">
-              {items.map((item, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-grow">
-                      <span
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <input
-                        type="text"
-                        placeholder={`銘柄名（例: トヨタ自動車）`}
-                        value={item.name}
-                        onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    {items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(idx)}
-                        className="text-slate-400 hover:text-red-500 text-xs px-1 font-bold"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
+              {items.map((item, idx) => {
+                const isHovered = hoveredIndex === idx;
+                const calcItem = calculatedItems[idx];
+                const itemRatio = totalAmount > 0 ? Math.floor((calcItem.amount / totalAmount) * 100) : 0;
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-0.5">想定株価 (円)</label>
-                      <input
-                        type="number"
-                        step="any"
-                        placeholder="例: 2500.5"
-                        value={item.price}
-                        onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
+                return (
+                  <div
+                    key={idx}
+                    onMouseEnter={() => setHoveredIndex(idx)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                    className={`p-3 rounded-xl border transition-all duration-150 space-y-2 ${
+                      isHovered
+                        ? 'bg-indigo-50/50 border-indigo-300 shadow-xs'
+                        : 'bg-slate-50 border-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-grow">
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="銘柄名（例: トヨタ自動車）"
+                          value={item.name}
+                          onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="text-slate-400 hover:text-red-500 text-xs px-1 font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-0.5">保有株数 (小数可)</label>
-                      <input
-                        type="number"
-                        step="any"
-                        placeholder="例: 1.5"
-                        value={item.shares}
-                        onChange={(e) => handleItemChange(idx, 'shares', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold mb-0.5">想定株価 (円)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="例: 2500"
+                          value={item.price}
+                          onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold mb-0.5">保有株数</label>
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="例: 10"
+                          value={item.shares}
+                          onChange={(e) => handleItemChange(idx, 'shares', e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="h-4 flex items-center justify-end text-[11px] font-bold text-slate-500">
+                      {calcItem.amount > 0 ? (
+                        <span>
+                          金額: ¥{calcItem.amount.toLocaleString()} ({itemRatio}%)
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 font-normal">未設定</span>
+                      )}
                     </div>
                   </div>
-
-                  {calculatedItems[idx].amount > 0 && (
-                    <div className="text-right text-[11px] font-bold text-slate-500 pt-0.5">
-                      金額: ¥{calculatedItems[idx].amount.toLocaleString()} ({totalAmount > 0 ? Math.floor((calculatedItems[idx].amount / totalAmount) * 100) : 0}%)
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <button
@@ -272,11 +294,11 @@ export default function CreateFundPage() {
             </button>
           </div>
 
-          {/* プレビュー円グラフ（隙間なし） */}
+          {/* プレビュー円グラフ（ホバー連動・隙間なし） */}
           {totalAmount > 0 && (
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center">
               <span className="text-xs font-bold text-slate-400 mb-2">構成プレビュー</span>
-              <div className="relative w-48 h-48">
+              <div className="relative w-64 h-64 flex items-center justify-center">
                 <svg viewBox="0 0 200 200" className="w-full h-full">
                   {calculatedItems.map((item, idx) => {
                     if (item.amount <= 0) return null;
@@ -286,15 +308,51 @@ export default function CreateFundPage() {
                     const endAngle = currentAngle + safeAngle;
                     currentAngle += safeAngle;
 
+                    const isHovered = hoveredIndex === idx;
+                    const outerR = isHovered ? 92 : 86;
+                    const innerR = 48;
+
                     return (
                       <path
                         key={idx}
-                        d={getDonutSlicePath(100, 100, 86, 48, startAngle, endAngle)}
+                        d={getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle)}
                         fill={item.color}
+                        className="transition-all duration-150 cursor-pointer"
+                        style={{
+                          opacity: hoveredIndex !== null && !isHovered ? 0.35 : 1,
+                        }}
+                        onMouseEnter={() => setHoveredIndex(idx)}
+                        onMouseLeave={() => setHoveredIndex(null)}
                       />
                     );
                   })}
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="47"
+                    fill="transparent"
+                    onMouseEnter={() => setHoveredIndex(null)}
+                  />
                 </svg>
+              </div>
+
+              <div className="h-7 mt-2 flex items-center justify-center text-xs">
+                {hoveredIndex !== null && calculatedItems[hoveredIndex]?.amount > 0 ? (
+                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: calculatedItems[hoveredIndex].color }}
+                    />
+                    <span className="font-bold text-slate-800">
+                      {calculatedItems[hoveredIndex].name}
+                    </span>
+                    <span className="font-bold text-indigo-600">
+                      {Math.floor((calculatedItems[hoveredIndex].amount / totalAmount) * 100)}%
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-slate-400">銘柄またはグラフに触れると詳細が表示されます</span>
+                )}
               </div>
             </div>
           )}
