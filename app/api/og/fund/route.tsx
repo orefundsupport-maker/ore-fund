@@ -1,10 +1,8 @@
-// app/api/og/fund/route.tsx
-import { ImageResponse } from '@vercel/og';
-import { NextRequest } from 'next/server';
+import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const title = searchParams.get('title') || '俺ファンド';
@@ -23,51 +21,58 @@ export async function GET(request: NextRequest) {
             justifyContent: 'space-between',
             backgroundColor: '#0f172a',
             padding: '60px 80px',
-            color: '#ffffff',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '9999px',
-                backgroundColor: '#38bdf8',
-              }}
-            />
-            <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#94a3b8' }}>
-              俺ファンド | ポートフォリオ共有
-            </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#38bdf8',
+            }}
+          >
+            俺ファンド | ポートフォリオ共有
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
             <div
               style={{
                 fontSize: '52px',
-                fontWeight: 'bold',
-                lineHeight: 1.2,
+                fontWeight: 700,
                 color: '#f8fafc',
               }}
             >
               {title}
             </div>
-            <div style={{ fontSize: '26px', color: '#94a3b8' }}>
-              {desc.length > 50 ? `${desc.slice(0, 50)}...` : desc}
+            <div
+              style={{
+                fontSize: '26px',
+                color: '#94a3b8',
+              }}
+            >
+              {desc}
             </div>
           </div>
 
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
+              alignItems: 'center',
               width: '100%',
               borderTop: '1px solid #334155',
               paddingTop: '24px',
             }}
           >
             <div style={{ fontSize: '24px', color: '#cbd5e1' }}>
-              作成者: <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>{author}</span>
+              作成者: {author}
             </div>
             <div style={{ fontSize: '22px', color: '#64748b' }}>
               ore-fund.vercel.app
@@ -81,8 +86,6 @@ export async function GET(request: NextRequest) {
       }
     );
   } catch (e: any) {
-    return new Response(`Failed to generate the image: ${e.message}`, {
-      status: 500,
-    });
+    return new Response(`Error: ${e.message}`, { status: 500 });
   }
 }
