@@ -1,19 +1,13 @@
 import { ImageResponse } from 'next/og';
-import { NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
-export async function GET(req: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const title = searchParams.get('title') || '俺ファンド';
     const author = searchParams.get('author') || '名無し投資家';
     const desc = searchParams.get('desc') || 'オリジナル仮想ポートフォリオ';
-
-    // Google Fontsから日本語フォント（Noto Sans JP）を取得
-    const fontData = await fetch(
-      new URL('https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-jp@latest/japanese-700-normal.woff')
-    ).then((res) => res.arrayBuffer());
 
     return new ImageResponse(
       (
@@ -26,15 +20,13 @@ export async function GET(req: NextRequest) {
             justifyContent: 'space-between',
             backgroundColor: '#0f172a',
             padding: '60px 80px',
-            fontFamily: '"Noto Sans JP"',
+            fontFamily: 'sans-serif',
           }}
         >
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
               fontSize: '28px',
-              fontWeight: 700,
+              fontWeight: 'bold',
               color: '#38bdf8',
             }}
           >
@@ -51,7 +43,7 @@ export async function GET(req: NextRequest) {
             <div
               style={{
                 fontSize: '52px',
-                fontWeight: 700,
+                fontWeight: 'bold',
                 color: '#f8fafc',
                 lineHeight: 1.2,
               }}
@@ -72,14 +64,13 @@ export async function GET(req: NextRequest) {
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
               width: '100%',
               borderTop: '1px solid #334155',
               paddingTop: '24px',
             }}
           >
             <div style={{ fontSize: '24px', color: '#cbd5e1' }}>
-              作成者: <span style={{ color: '#38bdf8' }}>{author}</span>
+              作成者: {author}
             </div>
             <div style={{ fontSize: '22px', color: '#64748b' }}>
               ore-fund.vercel.app
@@ -90,14 +81,6 @@ export async function GET(req: NextRequest) {
       {
         width: 1200,
         height: 630,
-        fonts: [
-          {
-            name: 'Noto Sans JP',
-            data: fontData,
-            style: 'normal',
-            weight: 700,
-          },
-        ],
       }
     );
   } catch (e: any) {
