@@ -1,45 +1,10 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { ImageResponse } from 'next/og';
 import { supabase } from '@/app/lib/supabase';
 
-type FundItem = {
-  name: string;
-  price: string;
-  shares: string;
-  color: string;
-};
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
-
-const RANDOM_AUTHORS = [
-  '名無し投資家@含み損',
-  '名無し投資家@億り人志望',
-  '名無し株主@配当生活',
-  '風吹けば名無しファンド',
-  '靴磨きの名無し',
-  '名無し投資家@全力買い',
-  '名無し@ナンピン戦士',
-  '名無し投資家@気絶投資法',
-  '名無しトレーダー@逆張り',
-  '名無し投資家@ガチホ中',
-];
-
-const SHARE_HOOKS = [
-  'あなたならこのPF何点つけますか？🤔',
-  'このポートフォリオ、アリですか？ナシですか？🔥',
-  'ツッコミどころあれば容赦なく採点してください！🙇‍♂️',
-  'この構成で勝てると思う？投資家の意見求む📈',
-  '100点満点でガチ評価お願いします！💬',
-];
-
-async function calculateTripCode(key: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(key);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
-}
 
 function getDonutSlicePath(
   cx: number, cy: number, rOuter: number, rInner: number,
@@ -56,6 +21,7 @@ function getDonutSlicePath(
   const x2Inner = cx + rInner * Math.cos(startRad);
   const y2Inner = cy + rInner * Math.sin(startRad);
   const largeArcFlag = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
+
   return [
     `M ${x1Outer} ${y1Outer}`,
     `A ${rOuter} ${rOuter} 0 ${largeArcFlag} 1 ${x2Outer} ${y2Outer}`,
@@ -65,436 +31,288 @@ function getDonutSlicePath(
   ].join(' ');
 }
 
-export default function CreateFundPage() {
-  const router = useRouter();
-  const [title, setTitle] = useState('');
-  const [author, setAuthor] = useState('');
-  const [previewAuthor, setPreviewAuthor] = useState('');
-  const [randomSeed, setRandomSeed] = useState<{ base: string; key: string }>({ base: '', key: '' });
-  const [description, setDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [items, setItems] = useState<FundItem[]>([
-    { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
-    { name: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
-  ]);
-
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [createdFund, setCreatedFund] = useState<{ id: string; title: string; author: string } | null>(null);
-
-  const refreshRandomSeed = () => {
-    const base = RANDOM_AUTHORS[Math.floor(Math.random() * RANDOM_AUTHORS.length)];
-    const key = Math.random().toString(36).substring(2, 10);
-    setRandomSeed({ base, key });
-  };
-
-  useEffect(() => {
-    refreshRandomSeed();
-  }, []);
-
-  useEffect(() => {
-    async function updatePreview() {
-      const trimmed = author.trim();
-      const hashIndex = trimmed.indexOf('#');
-      if (hashIndex !== -1) {
-        const authorName = trimmed.slice(0, hashIndex).trim() || '名無し投資家';
-        const tripKey = trimmed.slice(hashIndex + 1).trim();
-        if (!tripKey) {
-          setPreviewAuthor(authorName);
-        } else {
-          const code = await calculateTripCode(tripKey);
-          setPreviewAuthor(`${authorName} ◆${code}`);
-        }
-      } else if (trimmed) {
-        setPreviewAuthor(trimmed);
-      } else if (randomSeed.base && randomSeed.key) {
-        const code = await calculateTripCode(randomSeed.key);
-        setPreviewAuthor(`${randomSeed.base} ◆${code}`);
-      }
+async function loadGoogleFont(font: string, text: string) {
+  const url = `https://fonts.googleapis.com/css2?family=${font}:wght@700&text=${encodeURIComponent(text)}`;
+  const css = await (await fetch(url)).text();
+  const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/);
+  if (resource) {
+    const res = await fetch(resource[1]);
+    if (res.status === 200) {
+      return await res.arrayBuffer();
     }
-    updatePreview();
-  }, [author, randomSeed]);
+  }
+  return null;
+}
 
-  const handleAddItem = () => {
-    const nextColor = DEFAULT_COLORS[items.length % DEFAULT_COLORS.length];
-    setItems([...items, { name: '', price: '', shares: '1', color: nextColor }]);
-  };
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
 
-  const handleRemoveItem = (index: number) => {
-    if (items.length <= 1) return;
-    setItems(items.filter((_, i) => i !== index));
-    if (hoveredIndex === index) setHoveredIndex(null);
-  };
-
-  const handleItemChange = (index: number, field: keyof FundItem, value: string) => {
-    const newItems = [...items];
-    newItems[index][field] = value;
-    setItems(newItems);
-  };
-
-  const calculatedItems = items.map((item, idx) => {
-    const p = parseFloat(item.price) || 0;
-    const s = parseFloat(item.shares) || 0;
-    const amount = Math.floor(p * s);
-    return {
-      index: idx,
-      name: item.name.trim() || `銘柄${idx + 1}`,
-      price: p,
-      shares: s,
-      amount,
-      color: item.color,
-    };
-  });
-
-  const totalAmount = Math.floor(calculatedItems.reduce((sum, item) => sum + item.amount, 0));
-  let currentAngle = 0;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) {
-      alert('ファンド名を入力してください。');
-      return;
+    if (!id) {
+      return new Response('Missing Fund ID', { status: 400 });
     }
-    const validItems = calculatedItems.filter((i) => i.amount > 0);
-    if (validItems.length === 0) {
-      alert('株価と株数を入力して、合計金額が1円以上になるように設定してください。');
-      return;
-    }
-    setIsSubmitting(true);
-    const finalAuthor = previewAuthor || '名無し投資家';
-    const formattedItemsToSave = validItems.map((item) => ({
-      name: item.name,
-      price: item.price,
-      shares: item.shares,
-      amount: item.amount,
-      ratio: totalAmount > 0 ? Math.floor((item.amount / totalAmount) * 100) : 0,
-      color: item.color,
-    }));
 
-    const { data, error } = await supabase
+    const { data: fund, error } = await supabase
       .from('funds')
-      .insert([
-        {
-          title: title.trim(),
-          author: finalAuthor,
-          description: description.trim(),
-          total_amount: totalAmount,
-          funny_count: 0,
-          items: formattedItemsToSave,
-        },
-      ])
-      .select()
+      .select('*')
+      .eq('id', id)
       .single();
 
-    if (error || !data) {
-      console.error('作成エラー:', error);
-      alert('ファンドの作成に失敗しました。もう一度お試しください。');
-      setIsSubmitting(false);
-      return;
+    if (error || !fund) {
+      return new Response('Fund Not Found', { status: 404 });
     }
 
-    setCreatedFund({ id: data.id, title: data.title, author: data.author });
-    setShowShareModal(true);
-    setIsSubmitting(false);
-  };
+    const title = fund.title || '無題のファンド';
+    const author = fund.author || '名無し投資家';
+    const description = fund.description || '俺ファンド - 仮想ポートフォリオ';
 
-  const handleConfirmShare = () => {
-    if (!createdFund) return;
-    const randomHook = SHARE_HOOKS[Math.floor(Math.random() * SHARE_HOOKS.length)];
-    const text = `📊 「${createdFund.title}」を考えました！\n作成者: @${createdFund.author}\n\n${randomHook}\n\n#俺ファンド #株式投資 #ポートフォリオ`;
-    const fundUrl = `${window.location.origin}/fund/${createdFund.id}`;
-    const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(fundUrl)}`;
-    
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
-    router.push(`/fund/${createdFund.id}`);
-  };
+    // items の安全なパース
+    let rawItems: any[] = [];
+    if (Array.isArray(fund.items)) {
+      rawItems = fund.items;
+    } else if (typeof fund.items === 'string') {
+      try {
+        rawItems = JSON.parse(fund.items);
+      } catch (e) {
+        rawItems = [];
+      }
+    }
 
-  const handleCancelShare = () => {
-    if (!createdFund) return;
-    router.push(`/fund/${createdFund.id}`);
-  };
+    const items = rawItems.map((item, idx) => {
+      const p = parseFloat(item?.price) || 0;
+      const s = parseFloat(item?.shares) || 1;
+      const amount = parseFloat(item?.amount) || p * s || 0;
+      return {
+        name: String(item?.name || `銘柄${idx + 1}`),
+        amount,
+        color: item?.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
+      };
+    });
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-16 relative">
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => router.push('/')}
-          className="text-sm font-medium text-slate-600 hover:text-slate-900"
+    const totalAmount = items.reduce((sum, i) => sum + i.amount, 0);
+
+    let currentAngle = 0;
+    const slices = items.map((item, idx) => {
+      const ratio = totalAmount > 0 ? item.amount / totalAmount : 1 / (items.length || 1);
+      const sliceAngle = ratio * 360;
+      const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + safeAngle;
+      currentAngle += safeAngle;
+
+      const path = getDonutSlicePath(130, 130, 110, 60, startAngle, endAngle);
+      const percent = Math.round(ratio * 100);
+
+      return { ...item, path, percent };
+    });
+
+    const fontText = `${title}${author}${description}俺ファンド銘柄他0123456789%@◆`;
+    let fontData: ArrayBuffer | null = null;
+    try {
+      fontData = await loadGoogleFont('Noto+Sans+JP', fontText);
+    } catch (e) {
+      fontData = null;
+    }
+
+    const fontsConfig = fontData
+      ? [
+          {
+            name: 'NotoSansJP',
+            data: fontData,
+            style: 'normal' as const,
+            weight: 700 as const,
+          },
+        ]
+      : [];
+
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: '#090d16',
+            padding: '50px',
+            fontFamily: fontData ? 'NotoSansJP, sans-serif' : 'sans-serif',
+          }}
         >
-          ← 戻る
-        </button>
-        <h1 className="text-base font-bold text-slate-800">ファンド作成</h1>
-        <div className="w-10" />
-      </header>
-
-      <main className="max-w-xl mx-auto px-4 pt-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-slate-700">📌 基本情報</h2>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
-                ファンド名 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="例: 俺のAI成長ファンド"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-bold text-slate-600">投稿者名</label>
-                <span className="text-[10px] text-slate-400">名前#パスワード でなりすまし防止</span>
-              </div>
-              <input
-                type="text"
-                value={author}
-                onChange={(e) => setAuthor(e.target.value)}
-                placeholder="例: 投資太郎#秘密の言葉（空欄ならランダム）"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 overflow-hidden">
-                  <span className="text-[11px] font-bold text-slate-500 flex-shrink-0">🏷️ 生成される名前:</span>
-                  <span className="text-xs font-extrabold text-indigo-600 truncate bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
-                    @{previewAuthor || '計算中...'}
-                  </span>
-                </div>
-                {!author && (
-                  <button
-                    type="button"
-                    onClick={refreshRandomSeed}
-                    className="text-[10px] bg-slate-200/70 hover:bg-slate-300 text-slate-600 font-bold px-2 py-1 rounded-lg transition flex-shrink-0"
-                    title="別のランダム名前に変更"
-                  >
-                    🎲 引き直す
-                  </button>
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">ファンドの説明・こだわり</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="このファンドの狙いや選定理由を自由に書いてください"
-                rows={3}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-sm font-bold text-slate-700">📊 組み入れ銘柄</h2>
-              <span className="text-xs font-bold text-indigo-600">
-                合計: ¥{totalAmount.toLocaleString()}
+          {/* 左側情報 */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              width: '58%',
+              height: '100%',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: 24, fontWeight: 700, color: '#818cf8' }}>
+                📈 俺ファンド
               </span>
             </div>
 
-            <div className="space-y-3">
-              {items.map((item, idx) => {
-                const isHovered = hoveredIndex === idx;
-                const calcItem = calculatedItems[idx];
-                const itemRatio = totalAmount > 0 ? Math.floor((calcItem.amount / totalAmount) * 100) : 0;
-
-                return (
-                  <div
-                    key={idx}
-                    onMouseEnter={() => setHoveredIndex(idx)}
-                    onMouseLeave={() => setHoveredIndex(null)}
-                    className={`p-3 rounded-xl border transition-all duration-150 space-y-2 ${
-                      isHovered
-                        ? 'bg-indigo-50/50 border-indigo-300 shadow-xs'
-                        : 'bg-slate-50 border-slate-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-grow">
-                        <span
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: item.color }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="銘柄名（例: トヨタ自動車）"
-                          value={item.name}
-                          onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                      {items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-slate-400 hover:text-red-500 text-xs px-1 font-bold"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-0.5">想定株価 (円)</label>
-                        <input
-                          type="number"
-                          step="any"
-                          placeholder="例: 2500"
-                          value={item.price}
-                          onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-0.5">保有株数</label>
-                        <input
-                          type="number"
-                          step="any"
-                          placeholder="例: 10"
-                          value={item.shares}
-                          onChange={(e) => handleItemChange(idx, 'shares', e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="h-4 flex items-center justify-end text-[11px] font-bold text-slate-500">
-                      {calcItem.amount > 0 ? (
-                        <span>
-                          金額: ¥{calcItem.amount.toLocaleString()} ({itemRatio}%)
-                        </span>
-                      ) : (
-                        <span className="text-slate-300 font-normal">未設定</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div
+                style={{
+                  fontSize: 38,
+                  fontWeight: 700,
+                  color: '#ffffff',
+                  lineHeight: 1.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {title}
+              </div>
+              <div
+                style={{
+                  fontSize: 18,
+                  color: '#94a3b8',
+                  lineHeight: 1.4,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {description}
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleAddItem}
-              className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs rounded-xl transition"
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#1e293b',
+                padding: '8px 16px',
+                borderRadius: '12px',
+                width: 'fit-content',
+              }}
             >
-              ＋ 銘柄を追加する
-            </button>
+              <span style={{ fontSize: 15, color: '#64748b', marginRight: 6 }}>作成:</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#38bdf8' }}>
+                @{author}
+              </span>
+            </div>
           </div>
 
-          {totalAmount > 0 && (
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center">
-              <span className="text-xs font-bold text-slate-400 mb-2">構成プレビュー</span>
-              <div className="relative w-64 h-64 flex items-center justify-center">
-                <svg viewBox="0 0 200 200" className="w-full h-full">
-                  {calculatedItems.map((item, idx) => {
-                    if (item.amount <= 0) return null;
-                    const sliceAngle = (item.amount / totalAmount) * 360;
-                    const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
-                    const startAngle = currentAngle;
-                    const endAngle = currentAngle + safeAngle;
-                    currentAngle += safeAngle;
-
-                    const isHovered = hoveredIndex === idx;
-                    const outerR = isHovered ? 92 : 86;
-                    const innerR = 48;
-
-                    return (
-                      <path
-                        key={idx}
-                        d={getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle)}
-                        fill={item.color}
-                        className="transition-all duration-150 cursor-pointer"
-                        style={{
-                          opacity: hoveredIndex !== null && !isHovered ? 0.35 : 1,
-                        }}
-                        onMouseEnter={() => setHoveredIndex(idx)}
-                        onMouseLeave={() => setHoveredIndex(null)}
-                      />
-                    );
-                  })}
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="47"
-                    fill="transparent"
-                    className="cursor-default"
-                    onMouseEnter={() => setHoveredIndex(null)}
-                  />
-                </svg>
+          {/* 右側グラフ */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '38%',
+              height: '100%',
+              backgroundColor: '#111827',
+              borderRadius: '20px',
+              padding: '20px',
+              border: '1px solid #1f2937',
+            }}
+          >
+            <div style={{ display: 'flex', position: 'relative', width: 200, height: 200 }}>
+              <svg width="200" height="200" viewBox="0 0 260 260">
+                {slices.length > 0 ? (
+                  slices.map((s, i) => <path key={i} d={s.path} fill={s.color} />)
+                ) : (
+                  <circle cx="130" cy="130" r="100" fill="#334155" />
+                )}
+              </svg>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: 200,
+                  height: 200,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                }}
+              >
+                <span style={{ fontSize: 13, color: '#94a3b8' }}>銘柄数</span>
+                <span style={{ fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
+                  {items.length}
+                </span>
               </div>
+            </div>
 
-              <div className="h-7 mt-2 flex items-center justify-center text-xs">
-                {hoveredIndex !== null && calculatedItems[hoveredIndex]?.amount > 0 ? (
-                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: calculatedItems[hoveredIndex].color }}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+                width: '100%',
+                marginTop: '14px',
+              }}
+            >
+              {slices.slice(0, 3).map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: 13,
+                    color: '#e2e8f0',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: s.color,
+                        flexShrink: 0,
+                      }}
                     />
-                    <span className="font-bold text-slate-800">
-                      {calculatedItems[hoveredIndex].name}
-                    </span>
-                    <span className="font-bold text-indigo-600">
-                      {Math.floor((calculatedItems[hoveredIndex].amount / totalAmount) * 100)}%
+                    <span
+                      style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 120,
+                      }}
+                    >
+                      {s.name}
                     </span>
                   </div>
-                ) : (
-                  <span className="text-slate-400">銘柄またはグラフに触れると詳細が表示されます</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold py-3.5 px-4 rounded-2xl shadow-md transition text-sm active:scale-98 cursor-pointer"
-          >
-            {isSubmitting ? '作成中...' : '🚀 ファンドを公開する'}
-          </button>
-        </form>
-      </main>
-
-      {showShareModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4 border border-slate-100">
-            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl">
-              🎉
-            </div>
-
-            <div className="space-y-1">
-              <h3 className="text-base font-extrabold text-slate-900">
-                ファンドを作成しました！
-              </h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                今すぐX（Twitter）に投稿して、みんなにポートフォリオを見てもらいますか？
-              </p>
-            </div>
-
-            <div className="pt-2 space-y-2">
-              <button
-                type="button"
-                onClick={handleConfirmShare}
-                className="w-full py-3 px-4 bg-black hover:bg-slate-800 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-95 cursor-pointer"
-              >
-                <span>𝕏 で今すぐ投稿する（はい）</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCancelShare}
-                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-xs transition active:scale-95 cursor-pointer"
-              >
-                あとで（詳細を見る）
-              </button>
+                  <span style={{ fontWeight: 700, color: '#cbd5e1' }}>{s.percent}%</span>
+                </div>
+              ))}
+              {slices.length > 3 && (
+                <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center' }}>
+                  他 {slices.length - 3} 銘柄...
+                </div>
+              )}
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      ),
+      {
+        width: 1200,
+        height: 630,
+        fonts: fontsConfig,
+        headers: {
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      }
+    );
+  } catch (err) {
+    console.error('OGP Error:', err);
+    return new Response('OGP Generation Error', { status: 500 });
+  }
 }
