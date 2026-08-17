@@ -2,28 +2,22 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-// 使用する文字列に含まれるグリフだけを持つ日本語フォントを動的取得
 async function getNotoSansJP(text: string, weight: 400 | 700 = 700) {
   const params = new URLSearchParams({
     family: `Noto Sans JP:wght@${weight}`,
-    text, // 必要な文字だけを動的にサブセット化
+    text,
   });
 
   const cssRes = await fetch(`https://fonts.googleapis.com/css2?${params}`, {
     headers: {
-      // WOFF2非対応の古いSafariを装うことで、Googleに強制的にTTFを返させる
       'User-Agent':
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/534.57.2 (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2',
     },
   });
   const css = await cssRes.text();
 
-  // truetype, opentype, woff を抽出
   const match = css.match(/src: url\(([^)]+)\) format\('(truetype|opentype|woff)'\)/);
-  if (!match) {
-    console.error('Google Fonts CSS response:', css);
-    throw new Error('フォントURLの取得に失敗しました');
-  }
+  if (!match) throw new Error('フォントURLの取得に失敗しました');
 
   const fontRes = await fetch(match[1]);
   if (fontRes.status !== 200) throw new Error('フォントファイルの取得に失敗しました');
@@ -38,7 +32,6 @@ export async function GET(request: Request) {
     const author = searchParams.get('author') || '名無し投資家';
     const desc = searchParams.get('desc') || 'オリジナル仮想ポートフォリオ';
 
-    // 画像内で実際に使う全文字列をまとめて重複除去
     const allText = Array.from(
       new Set(
         `俺ファンド|ポートフォリオ共有${title}${desc}作成者:${author}ore-fund.vercel.app`
@@ -110,6 +103,9 @@ export async function GET(request: Request) {
       {
         width: 1200,
         height: 630,
+        headers: {
+          'Cache-Control': 'public, immutable, no-transform, max-age=31536000',
+        },
         fonts: [
           {
             name: 'Noto Sans JP',

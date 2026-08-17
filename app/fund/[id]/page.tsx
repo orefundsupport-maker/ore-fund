@@ -19,7 +19,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const author = fund?.author || '名無し投資家';
   const description = fund?.description || 'オリジナル仮想ポートフォリオプラットフォーム';
 
-  // クエリパラメータを確実にエンコードしてURLを生成
   const paramsQuery = new URLSearchParams({
     title,
     author,
