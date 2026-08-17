@@ -6,20 +6,24 @@ export const runtime = 'edge';
 async function getNotoSansJP(text: string, weight: 400 | 700 = 700) {
   const params = new URLSearchParams({
     family: `Noto Sans JP:wght@${weight}`,
-    text, // 実際に描画する文字列を渡して超軽量化
+    text, // 必要な文字だけを動的にサブセット化
   });
 
   const cssRes = await fetch(`https://fonts.googleapis.com/css2?${params}`, {
-    // Satoriが読めるtruetype/opentypeを返させるためにUser-Agentを指定
     headers: {
+      // WOFF2非対応の古いSafariを装うことで、Googleに強制的にTTFを返させる
       'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/534.57.2 (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2',
     },
   });
   const css = await cssRes.text();
 
-  const match = css.match(/src: url\(([^)]+)\) format\('(opentype|truetype)'\)/);
-  if (!match) throw new Error('フォントURLの取得に失敗しました');
+  // truetype, opentype, woff を抽出
+  const match = css.match(/src: url\(([^)]+)\) format\('(truetype|opentype|woff)'\)/);
+  if (!match) {
+    console.error('Google Fonts CSS response:', css);
+    throw new Error('フォントURLの取得に失敗しました');
+  }
 
   const fontRes = await fetch(match[1]);
   if (fontRes.status !== 200) throw new Error('フォントファイルの取得に失敗しました');
