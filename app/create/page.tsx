@@ -13,6 +13,42 @@ type FundItem = {
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
+const RANDOM_AUTHORS = [
+  '名無し投資家@含み損',
+  '名無し投資家@億り人志望',
+  '名無し株主@配当生活',
+  '風吹けば名無しファンド',
+  '靴磨きの名無し',
+  '名無し投資家@全力買い',
+  '名無し@ナンピン戦士',
+  '名無し投資家@気絶投資法',
+  '名無しトレーダー@逆張り',
+  '名無し投資家@ガチホ中',
+];
+
+async function generateTrip(input: string): Promise<string> {
+  const trimmed = input.trim();
+  if (trimmed.includes('#')) {
+    const [name, key] = trimmed.split('#');
+    const authorName = name.trim() || '名無し投資家';
+    const tripKey = key.trim();
+    if (!tripKey) return authorName;
+    const msgBuffer = new TextEncoder().encode(tripKey);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const tripCode = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
+    return `${authorName} ◆${tripCode}`;
+  }
+  if (trimmed) return trimmed;
+  const baseName = RANDOM_AUTHORS[Math.floor(Math.random() * RANDOM_AUTHORS.length)];
+  const randomKey = Math.random().toString(36).substring(2, 10);
+  const msgBuffer = new TextEncoder().encode(randomKey);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const tripCode = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
+  return `${baseName} ◆${tripCode}`;
+}
+
 function getDonutSlicePath(
   cx: number,
   cy: number,
@@ -23,19 +59,15 @@ function getDonutSlicePath(
 ) {
   const startRad = ((startAngleDeg - 90) * Math.PI) / 180;
   const endRad = ((endAngleDeg - 90) * Math.PI) / 180;
-
   const x1Outer = cx + rOuter * Math.cos(startRad);
   const y1Outer = cy + rOuter * Math.sin(startRad);
   const x2Outer = cx + rOuter * Math.cos(endRad);
   const y2Outer = cy + rOuter * Math.sin(endRad);
-
   const x1Inner = cx + rInner * Math.cos(endRad);
   const y1Inner = cy + rInner * Math.sin(endRad);
   const x2Inner = cx + rInner * Math.cos(startRad);
   const y2Inner = cy + rInner * Math.sin(startRad);
-
   const largeArcFlag = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
-
   return [
     `M ${x1Outer} ${y1Outer}`,
     `A ${rOuter} ${rOuter} 0 ${largeArcFlag} 1 ${x2Outer} ${y2Outer}`,
@@ -47,13 +79,11 @@ function getDonutSlicePath(
 
 export default function CreateFundPage() {
   const router = useRouter();
-
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-
   const [items, setItems] = useState<FundItem[]>([
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
@@ -91,7 +121,6 @@ export default function CreateFundPage() {
   });
 
   const totalAmount = Math.floor(calculatedItems.reduce((sum, item) => sum + item.amount, 0));
-
   let currentAngle = 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,15 +129,13 @@ export default function CreateFundPage() {
       alert('ファンド名を入力してください。');
       return;
     }
-
     const validItems = calculatedItems.filter((i) => i.amount > 0);
     if (validItems.length === 0) {
       alert('株価と株数を入力して、合計金額が1円以上になるように設定してください。');
       return;
     }
-
     setIsSubmitting(true);
-
+    const finalAuthor = await generateTrip(author);
     const formattedItemsToSave = validItems.map((item) => ({
       name: item.name,
       price: item.price,
@@ -117,13 +144,12 @@ export default function CreateFundPage() {
       ratio: totalAmount > 0 ? Math.floor((item.amount / totalAmount) * 100) : 0,
       color: item.color,
     }));
-
     const { data, error } = await supabase
       .from('funds')
       .insert([
         {
           title: title.trim(),
-          author: author.trim() || '匿名',
+          author: finalAuthor,
           description: description.trim(),
           total_amount: totalAmount,
           funny_count: 0,
@@ -132,14 +158,12 @@ export default function CreateFundPage() {
       ])
       .select()
       .single();
-
     if (error) {
       console.error('作成エラー:', error);
       alert('ファンドの作成に失敗しました。もう一度お試しください。');
       setIsSubmitting(false);
       return;
     }
-
     router.push(`/fund/${data.id}`);
   };
 
@@ -175,12 +199,15 @@ export default function CreateFundPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">投稿者名</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-600">投稿者名</label>
+                <span className="text-[10px] text-slate-400">#文字 でトリップ生成</span>
+              </div>
               <input
                 type="text"
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
-                placeholder="例: チャレンジャー（空欄なら匿名）"
+                placeholder="例: 投資マン#合言葉（空欄ならランダム名無し）"
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -294,7 +321,6 @@ export default function CreateFundPage() {
             </button>
           </div>
 
-          {/* プレビュー円グラフ（ホバー連動・隙間なし） */}
           {totalAmount > 0 && (
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center">
               <span className="text-xs font-bold text-slate-400 mb-2">構成プレビュー</span>
@@ -331,6 +357,7 @@ export default function CreateFundPage() {
                     cy="100"
                     r="47"
                     fill="transparent"
+                    className="cursor-default"
                     onMouseEnter={() => setHoveredIndex(null)}
                   />
                 </svg>
