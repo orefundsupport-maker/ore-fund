@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 
 type FundItem = {
@@ -97,12 +97,15 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   const resolvedParams = use(params);
   const fundId = resolvedParams.id;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isAdmin = searchParams.get('admin') === '1';
 
   const [fund, setFund] = useState<Fund | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
   const [hoveredItem, setHoveredItem] = useState<{ name: string; ratio: number; color: string } | null>(null);
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -170,6 +173,38 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
     setNewComment('');
   };
 
+  const handleDeleteFund = async () => {
+    if (!fund) return;
+    const adminKey = prompt('管理者パスワードを入力してください:');
+    if (!adminKey) return;
+
+    if (!confirm('【警告】本当にこのファンドを削除しますか？この操作は取り消せません。')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch('/api/admin/delete-fund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: fund.id, adminKey }),
+      });
+
+      const result = await res.json();
+      if (res.ok && result.success) {
+        alert('ファンドを完全に削除しました。');
+        router.push('/');
+        router.refresh();
+      } else {
+        alert(`削除失敗: ${result.error || '不明なエラー'}`);
+      }
+    } catch {
+      alert('通信エラーが発生しました。');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 text-sm">
@@ -184,7 +219,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
         <p className="text-sm font-bold">データが見つかりません。</p>
         <button
           onClick={() => router.push('/')}
-          className="text-xs bg-indigo-600 text-white font-bold px-4 py-2 rounded-full hover:bg-indigo-700 transition"
+          className="text-xs bg-indigo-600 text-white font-bold px-4 py-2 rounded-full hover:bg-indigo-700 transition cursor-pointer"
         >
           トップへ戻る
         </button>
@@ -242,7 +277,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
       .join('\n');
     const remainingText = displayItems.length > 4 ? `\n・他${displayItems.length - 4}銘柄` : '';
 
-    // 「作りました」から「考えました」に変更
     const text = `📊「${fund.title}」を考えました！\n\n${topItemsText}${remainingText}\n\nあなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
     const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://ore-fund.vercel.app/fund/${fund.id}`;
 
@@ -255,7 +289,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <button
           onClick={() => router.push('/')}
-          className="text-sm font-medium text-slate-600 hover:text-slate-900"
+          className="text-sm font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
         >
           ← トップへ戻る
         </button>
@@ -288,7 +322,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 <button
                   type="button"
                   onClick={() => setChartType('pie')}
-                  className={`px-2 py-0.5 rounded-md transition ${
+                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                     chartType === 'pie'
                       ? 'bg-white text-indigo-600 shadow-2xs'
                       : 'text-slate-400 hover:text-slate-600'
@@ -299,7 +333,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 <button
                   type="button"
                   onClick={() => setChartType('bar')}
-                  className={`px-2 py-0.5 rounded-md transition ${
+                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                     chartType === 'bar'
                       ? 'bg-white text-indigo-600 shadow-2xs'
                       : 'text-slate-400 hover:text-slate-600'
@@ -358,7 +392,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
 
                 <div className="h-8 mt-1 flex items-center justify-center">
                   {hoveredItem ? (
-                    <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
+                    <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm">
                       <span
                         className="w-3 h-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: hoveredItem.color }}
@@ -424,7 +458,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
           <div className="pt-2">
             <button
               onClick={handleShareToX}
-              className="w-full bg-black hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 active:scale-98"
+              className="w-full bg-black hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
             >
               <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -437,7 +471,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
             <button
               onClick={handleFunnyClick}
               disabled={hasReacted}
-              className={`flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-full transition ${
+              className={`flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-full transition cursor-pointer ${
                 hasReacted
                   ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   : 'text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95'
@@ -481,12 +515,25 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
             />
             <button
               type="submit"
-              className="bg-indigo-600 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-indigo-700 transition active:scale-95 flex-shrink-0"
+              className="bg-indigo-600 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-indigo-700 transition active:scale-95 flex-shrink-0 cursor-pointer"
             >
               送信
             </button>
           </form>
         </section>
+
+        {isAdmin && (
+          <div className="pt-6 pb-4 text-center border-t border-red-100">
+            <button
+              type="button"
+              onClick={handleDeleteFund}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+            >
+              {isDeleting ? '削除中...' : '🗑️ 管理者権限でこのファンドを削除'}
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );
