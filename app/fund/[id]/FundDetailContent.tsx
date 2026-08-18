@@ -467,7 +467,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
             </button>
           </div>
 
-          <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+          <div className="pt-2 flex justify-start items-center border-t border-slate-100">
             <button
               onClick={handleFunnyClick}
               disabled={hasReacted}
@@ -482,7 +482,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 {fund.funny_count || 0}
               </span>
             </button>
-            <span className="text-xs text-slate-400">🔒 編集不可（改ざん防止済）</span>
           </div>
         </article>
 
