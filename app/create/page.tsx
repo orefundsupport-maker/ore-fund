@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
+import { getCompanyNameByCode } from '@/app/lib/stockMaster';
 
 type FundItem = {
   name: string;
@@ -128,7 +129,17 @@ export default function CreateFundPage() {
 
   const handleItemChange = (index: number, field: keyof FundItem, value: string) => {
     const newItems = [...items];
-    newItems[index][field] = value;
+    let processedValue = value;
+
+    // 銘柄名入力欄でコード（4桁）が入力されたら自動で社名に置換
+    if (field === 'name') {
+      const matched = getCompanyNameByCode(value);
+      if (matched) {
+        processedValue = matched;
+      }
+    }
+
+    newItems[index][field] = processedValue;
     setItems(newItems);
   };
 
@@ -290,7 +301,10 @@ export default function CreateFundPage() {
 
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-sm font-bold text-slate-700">📊 組み入れ銘柄</h2>
+              <div>
+                <h2 className="text-sm font-bold text-slate-700">📊 組み入れ銘柄</h2>
+                <span className="text-[10px] text-slate-400">※ 証券コード4桁（例: 7203）入力で会社名を自動補完</span>
+              </div>
               <span className="text-xs font-bold text-indigo-600">
                 合計: ¥{totalAmount.toLocaleString()}
               </span>
@@ -321,7 +335,7 @@ export default function CreateFundPage() {
                         />
                         <input
                           type="text"
-                          placeholder="銘柄名（例: トヨタ自動車）"
+                          placeholder="銘柄名 または 証券コード（例: 7203, トヨタ自動車）"
                           value={item.name}
                           onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
                           className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
