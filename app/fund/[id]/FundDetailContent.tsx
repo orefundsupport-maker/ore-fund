@@ -277,7 +277,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
       .join('\n');
     const remainingText = displayItems.length > 4 ? `\n・他${displayItems.length - 4}銘柄` : '';
 
-    const text = `📊「${fund.title}」を考えました！\n\n${topItemsText}${remainingText}\n\nあなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
+    const text = `📊「${fund.title}」を考えました！\n作成者: @${fund.author}\n\n${topItemsText}${remainingText}\n\nこの構成で勝てると思う？あなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
     const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://ore-fund.vercel.app/fund/${fund.id}`;
 
     const twitterIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
@@ -345,7 +345,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
             </div>
 
             {chartType === 'bar' ? (
-              /* 1本の横棒スタックバー（帯グラフ） */
               <div className="py-2">
                 <div className="h-9 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner p-1 gap-1 items-center">
                   {displayItems.map((item, idx) => {
@@ -380,7 +379,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                   })}
                 </div>
 
-                {/* ホバー連動のチップ表示 */}
                 <div className="h-7 mt-2 flex items-center justify-center">
                   {hoveredItem ? (
                     <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs">
@@ -401,7 +399,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 </div>
               </div>
             ) : (
-              /* 円グラフ表示 */
               <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                 <div className="relative w-80 h-80 flex items-center justify-center">
                   <svg viewBox="0 0 200 200" className="w-full h-full">
@@ -475,7 +472,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               </div>
             )}
 
-            {/* 銘柄一覧リスト（ホバー連動） */}
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
               {displayItems.map((item, idx) => {
                 const isHovered = hoveredItem?.name === item.name;
