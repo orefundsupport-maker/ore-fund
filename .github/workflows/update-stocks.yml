@@ -1,0 +1,44 @@
+# .github/workflows/update-stocks.yml
+name: Update Stock Master Monthly
+
+on:
+  schedule:
+    # 毎月5日の日本時間午前10時（UTC 1:00）に自動実行
+    - cron: '0 1 5 * *'
+  # GitHubの画面から手動実行ボタンを押せるようにする設定
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # リポジトリへのプッシュ権限
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.js のセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 依存パッケージのインストール
+        run: npm ci || npm install
+
+      - name: 銘柄マスター自動更新スクリプトの実行
+        run: node scripts/update-stock-master.js
+
+      - name: 変更があればコミット＆プッシュ
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 差分があるかチェック
+          if git status --porcelain | grep -q "app/lib/stockMaster.ts"; then
+            git add app/lib/stockMaster.ts
+            git commit -m "chore: [自動] 東証銘柄マスターを月次更新"
+            git push origin main
+          else
+            echo "変更はありませんでした。"
+          fi
