@@ -26,6 +26,14 @@ const RANDOM_AUTHORS = [
   '名無し投資家@ガチホ中',
 ];
 
+const SHARE_HOOKS = [
+  'あなたならこのPF何点つけますか？🤔',
+  'このポートフォリオ、アリですか？ナシですか？🔥',
+  'ツッコミどころあれば容赦なく採点してください！🙇‍♂️',
+  'この構成で勝てると思う？投資家の意見求む📈',
+  '100点満点でガチ評価お願いします！💬',
+];
+
 async function calculateTripCode(key: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(key);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -34,12 +42,8 @@ async function calculateTripCode(key: string): Promise<string> {
 }
 
 function getDonutSlicePath(
-  cx: number,
-  cy: number,
-  rOuter: number,
-  rInner: number,
-  startAngleDeg: number,
-  endAngleDeg: number
+  cx: number, cy: number, rOuter: number, rInner: number,
+  startAngleDeg: number, endAngleDeg: number
 ) {
   const startRad = ((startAngleDeg - 90) * Math.PI) / 180;
   const endRad = ((endAngleDeg - 90) * Math.PI) / 180;
@@ -75,6 +79,9 @@ export default function CreateFundPage() {
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
   ]);
 
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [createdFund, setCreatedFund] = useState<{ id: string; title: string; author: string } | null>(null);
+
   const refreshRandomSeed = () => {
     const base = RANDOM_AUTHORS[Math.floor(Math.random() * RANDOM_AUTHORS.length)];
     const key = Math.random().toString(36).substring(2, 10);
@@ -88,10 +95,10 @@ export default function CreateFundPage() {
   useEffect(() => {
     async function updatePreview() {
       const trimmed = author.trim();
-      if (trimmed.includes('#')) {
-        const [name, key] = trimmed.split('#');
-        const authorName = name.trim() || '名無し投資家';
-        const tripKey = key.trim();
+      const hashIndex = trimmed.indexOf('#');
+      if (hashIndex !== -1) {
+        const authorName = trimmed.slice(0, hashIndex).trim() || '名無し投資家';
+        const tripKey = trimmed.slice(hashIndex + 1).trim();
         if (!tripKey) {
           setPreviewAuthor(authorName);
         } else {
@@ -163,6 +170,7 @@ export default function CreateFundPage() {
       ratio: totalAmount > 0 ? Math.floor((item.amount / totalAmount) * 100) : 0,
       color: item.color,
     }));
+
     const { data, error } = await supabase
       .from('funds')
       .insert([
@@ -177,22 +185,42 @@ export default function CreateFundPage() {
       ])
       .select()
       .single();
-    if (error) {
+
+    if (error || !data) {
       console.error('作成エラー:', error);
       alert('ファンドの作成に失敗しました。もう一度お試しください。');
       setIsSubmitting(false);
       return;
     }
-    router.push(`/fund/${data.id}`);
+
+    setCreatedFund({ id: data.id, title: data.title, author: data.author });
+    setShowShareModal(true);
+    setIsSubmitting(false);
+  };
+
+  const handleConfirmShare = () => {
+    if (!createdFund) return;
+    const randomHook = SHARE_HOOKS[Math.floor(Math.random() * SHARE_HOOKS.length)];
+    const text = `📊 「${createdFund.title}」を考えました！\n作成者: @${createdFund.author}\n\n${randomHook}\n\n#俺ファンド #株式投資 #ポートフォリオ`;
+    const fundUrl = `${window.location.origin}/fund/${createdFund.id}`;
+    const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(fundUrl)}`;
+    
+    window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    router.push(`/fund/${createdFund.id}`);
+  };
+
+  const handleCancelShare = () => {
+    if (!createdFund) return;
+    router.push(`/fund/${createdFund.id}`);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-16">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-16 relative">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="text-sm font-medium text-slate-600 hover:text-slate-900"
+          className="text-sm font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
         >
           ← 戻る
         </button>
@@ -220,13 +248,13 @@ export default function CreateFundPage() {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-bold text-slate-600">投稿者名</label>
-                <span className="text-[10px] text-slate-400">#合言葉 でトリップ生成</span>
+                <span className="text-[10px] text-slate-400">名前#パスワード でなりすまし防止</span>
               </div>
               <input
                 type="text"
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
-                placeholder="例: 投資マン#合言葉（空欄ならランダム名無し）"
+                placeholder="例: 投資太郎#秘密の言葉（空欄ならランダム）"
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2">
@@ -240,7 +268,7 @@ export default function CreateFundPage() {
                   <button
                     type="button"
                     onClick={refreshRandomSeed}
-                    className="text-[10px] bg-slate-200/70 hover:bg-slate-300 text-slate-600 font-bold px-2 py-1 rounded-lg transition flex-shrink-0"
+                    className="text-[10px] bg-slate-200/70 hover:bg-slate-300 text-slate-600 font-bold px-2 py-1 rounded-lg transition flex-shrink-0 cursor-pointer"
                     title="別のランダム名前に変更"
                   >
                     🎲 引き直す
@@ -303,7 +331,7 @@ export default function CreateFundPage() {
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(idx)}
-                          className="text-slate-400 hover:text-red-500 text-xs px-1 font-bold"
+                          className="text-slate-400 hover:text-red-500 text-xs px-1 font-bold cursor-pointer"
                         >
                           ✕
                         </button>
@@ -319,7 +347,8 @@ export default function CreateFundPage() {
                           placeholder="例: 2500"
                           value={item.price}
                           onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                       <div>
@@ -330,7 +359,8 @@ export default function CreateFundPage() {
                           placeholder="例: 10"
                           value={item.shares}
                           onChange={(e) => handleItemChange(idx, 'shares', e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </div>
@@ -352,7 +382,7 @@ export default function CreateFundPage() {
             <button
               type="button"
               onClick={handleAddItem}
-              className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs rounded-xl transition"
+              className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs rounded-xl transition cursor-pointer"
             >
               ＋ 銘柄を追加する
             </button>
@@ -424,12 +454,49 @@ export default function CreateFundPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold py-3.5 px-4 rounded-2xl shadow-md transition text-sm active:scale-98"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold py-3.5 px-4 rounded-2xl shadow-md transition text-sm active:scale-98 cursor-pointer"
           >
             {isSubmitting ? '作成中...' : '🚀 ファンドを公開する'}
           </button>
         </form>
       </main>
+
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4 border border-slate-100">
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+              🎉
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">
+                ファンドを作成しました！
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                今すぐX（Twitter）に投稿して、みんなにポートフォリオを見てもらいますか？
+              </p>
+            </div>
+
+            <div className="pt-2 space-y-2">
+              <button
+                type="button"
+                onClick={handleConfirmShare}
+                className="w-full py-3 px-4 bg-black hover:bg-slate-800 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <span>𝕏 で今すぐ投稿する（はい）</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCancelShare}
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-xs transition active:scale-95 cursor-pointer"
+              >
+                あとで（詳細を見る）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
