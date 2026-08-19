@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/app/lib/supabase';
 
 type FundItem = {
@@ -70,7 +71,6 @@ const SAMPLE_FUNDS: Fund[] = [
   },
 ];
 
-// 金額帯フィルタの定義（上限はundefinedで「それ以上」を表現）
 type AmountBandKey = 'all' | 'under5' | 'under10' | 'under15' | 'under20' | 'over20';
 
 const AMOUNT_BANDS: { key: AmountBandKey; label: string; min: number; max?: number }[] = [
@@ -208,7 +208,6 @@ export default function Home() {
     setSearchQuery(authorName);
   };
 
-  // ファンドの合計金額を取得（total_amountが無ければitemsから計算）
   const getFundTotalAmount = (fund: Fund): number => {
     if (fund.total_amount) return Math.floor(Number(fund.total_amount));
     return Math.floor(
@@ -220,7 +219,6 @@ export default function Home() {
   };
 
   const filteredFunds = funds.filter((fund) => {
-    // キーワード検索
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       const matchTitle = fund.title?.toLowerCase().includes(query);
@@ -232,7 +230,6 @@ export default function Home() {
       if (!matchTitle && !matchDescription && !matchAuthor && !matchItems) return false;
     }
 
-    // 金額帯フィルタ
     if (amountFilter !== 'all') {
       const band = AMOUNT_BANDS.find((b) => b.key === amountFilter)!;
       const total = getFundTotalAmount(fund);
@@ -246,13 +243,13 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
-        
+        <Link
           href="/"
           className="text-xl font-bold text-indigo-600 hover:opacity-80 transition cursor-pointer"
           title="トップページへ戻る"
         >
           俺ファンド
-        </a>
+        </Link>
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-4 space-y-6">
@@ -267,8 +264,9 @@ export default function Home() {
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-sm font-bold"
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -279,21 +277,22 @@ export default function Home() {
             <div className="flex justify-between items-center bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-lg text-xs text-indigo-700 font-medium">
               <span>「<strong>{searchQuery}</strong>」で検索中</span>
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
-                className="text-indigo-500 underline hover:text-indigo-800 ml-2"
+                className="text-indigo-500 underline hover:text-indigo-800 ml-2 cursor-pointer"
               >
                 クリア
               </button>
             </div>
           )}
 
-          {/* 金額帯フィルタチップ */}
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
             {AMOUNT_BANDS.map((band) => (
               <button
+                type="button"
                 key={band.key}
                 onClick={() => setAmountFilter(band.key)}
-                className={`flex-shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-full border transition ${
+                className={`flex-shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-full border transition cursor-pointer ${
                   amountFilter === band.key
                     ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
                     : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600'
@@ -306,13 +305,13 @@ export default function Home() {
         </section>
 
         <section className="flex justify-center pt-1">
-          
+          <Link
             href="/create"
             className="w-full max-w-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-2xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 text-base active:scale-98"
           >
             <span className="text-lg">➕</span>
             <span>自分で作る</span>
-          </a>
+          </Link>
         </section>
 
         <section className="space-y-4">
@@ -375,7 +374,7 @@ export default function Home() {
               const formattedCreatedDate = formatDate(fund.created_at);
 
               return (
-                
+                <Link
                   key={fund.id}
                   href={`/fund/${fund.id}`}
                   className="block bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition active:scale-98"
@@ -385,11 +384,11 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={(e) => handleAuthorClick(fund.author || '匿名', e)}
-                        className="font-bold text-slate-700 hover:text-indigo-600 hover:underline flex items-center gap-1 transition"
+                        className="font-bold text-slate-700 hover:text-indigo-600 hover:underline flex items-center gap-1 transition cursor-pointer"
                         title="このユーザーの投稿一覧を見る"
                       >
                         <span>@{fund.author || '匿名'}</span>
-                        <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.2 rounded">投稿一覧 🔍</span>
+                        <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">投稿一覧 🔍</span>
                       </button>
 
                       {formattedCreatedDate && (
@@ -414,7 +413,7 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={(e) => toggleChartType(fund.id, 'pie', e)}
-                          className={`px-2 py-0.5 rounded-md transition ${
+                          className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                             currentChart === 'pie'
                               ? 'bg-white text-indigo-600 shadow-2xs'
                               : 'text-slate-400 hover:text-slate-600'
@@ -425,7 +424,7 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={(e) => toggleChartType(fund.id, 'bar', e)}
-                          className={`px-2 py-0.5 rounded-md transition ${
+                          className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                             currentChart === 'bar'
                               ? 'bg-white text-indigo-600 shadow-2xs'
                               : 'text-slate-400 hover:text-slate-600'
@@ -496,7 +495,7 @@ export default function Home() {
 
                         <div className="h-9 mt-1 flex items-center justify-center">
                           {activeHoveredItem ? (
-                            <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm animate-fade-in text-xs">
+                            <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm text-xs">
                               <span
                                 className="w-3 h-3 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: activeHoveredItem.color }}
@@ -581,9 +580,10 @@ export default function Home() {
 
                   <div className="pt-2 border-t border-slate-50 flex justify-between items-center">
                     <button
+                      type="button"
                       onClick={(e) => handleFunnyClick(fund.id, fund.funny_count, e)}
                       disabled={hasReacted}
-                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition ${
+                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition cursor-pointer ${
                         hasReacted
                           ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                           : 'text-amber-600 bg-amber-50 hover:bg-amber-100 active:scale-95'
@@ -594,7 +594,7 @@ export default function Home() {
                     </button>
                     <span className="text-xs text-indigo-600 font-semibold">詳細を見る →</span>
                   </div>
-                </a>
+                </Link>
               );
             })
           )}
@@ -602,7 +602,7 @@ export default function Home() {
 
         <footer className="pt-8 pb-4 text-center text-[11px] text-slate-400 space-y-3 border-t border-slate-200">
           <div className="pb-2">
-            
+            <a
               href="https://docs.google.com/forms/d/e/1FAIpQLScOBq_NVmGd5JBdc_KKNvTb6JI4wSBX7FRjhId5XIVzKZGHJw/viewform?usp=publish-editor"
               target="_blank"
               rel="noopener noreferrer"
