@@ -133,6 +133,7 @@ export default function Home() {
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
   const [amountFilter, setAmountFilter] = useState<AmountBandKey>('all');
 
+  // 初期表示を「bar（横棒グラフ）」に設定
   const [chartTypes, setChartTypes] = useState<Record<string, 'pie' | 'bar'>>({});
   const [hoveredItems, setHoveredItems] = useState<Record<string, (FundItem & { ratio: number; displayAmount: number }) | null>>({});
 
@@ -327,7 +328,8 @@ export default function Home() {
             </p>
           ) : (
             filteredFunds.map((fund) => {
-              const currentChart = chartTypes[fund.id] || 'pie';
+              // デフォルトを 'bar'（横棒グラフ）に変更
+              const currentChart = chartTypes[fund.id] || 'bar';
               const activeHoveredItem = hoveredItems[fund.id] || null;
               const hasReacted = reactedFunds.includes(fund.id);
 
@@ -412,6 +414,17 @@ export default function Home() {
                       <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
                         <button
                           type="button"
+                          onClick={(e) => toggleChartType(fund.id, 'bar', e)}
+                          className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                            currentChart === 'bar'
+                              ? 'bg-white text-indigo-600 shadow-2xs'
+                              : 'text-slate-400 hover:text-slate-600'
+                          }`}
+                        >
+                          📊 横棒グラフ
+                        </button>
+                        <button
+                          type="button"
                           onClick={(e) => toggleChartType(fund.id, 'pie', e)}
                           className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                             currentChart === 'pie'
@@ -421,21 +434,84 @@ export default function Home() {
                         >
                           🍕 円グラフ
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => toggleChartType(fund.id, 'bar', e)}
-                          className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
-                            currentChart === 'bar'
-                              ? 'bg-white text-indigo-600 shadow-2xs'
-                              : 'text-slate-400 hover:text-slate-600'
-                          }`}
-                        >
-                          📊 バー
-                        </button>
                       </div>
                     </div>
 
-                    {currentChart === 'pie' ? (
+                    {currentChart === 'bar' ? (
+                      /* 横棒グラフ表示（初期表示） */
+                      <div className="space-y-2 py-2 px-1">
+                        {displayItems.map((item, idx) => {
+                          const isHovered = activeHoveredItem?.name === item.name;
+                          const barWidth = Math.min(Math.max((item.weight / weightTotal) * 100, 2), 100);
+
+                          return (
+                            <div
+                              key={idx}
+                              onMouseEnter={(e) => {
+                                e.stopPropagation();
+                                setHoveredItems((prev) => ({
+                                  ...prev,
+                                  [fund.id]: { ...item, ratio: item.displayRatio, displayAmount: item.amount },
+                                }));
+                              }}
+                              onMouseLeave={(e) => {
+                                e.stopPropagation();
+                                setHoveredItems((prev) => ({ ...prev, [fund.id]: null }));
+                              }}
+                              className={`p-2 rounded-xl transition-all duration-200 cursor-pointer ${
+                                isHovered
+                                  ? 'bg-slate-50 shadow-md -translate-y-0.5 scale-[1.01] border border-slate-200/80'
+                                  : 'hover:bg-slate-50/60 border border-transparent'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center text-xs mb-1.5">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform duration-200"
+                                    style={{
+                                      backgroundColor: item.color,
+                                      transform: isHovered ? 'scale(1.3)' : 'scale(1)',
+                                    }}
+                                  />
+                                  <span className={`truncate font-bold ${isHovered ? 'text-indigo-900' : 'text-slate-800'}`}>
+                                    {item.name}
+                                  </span>
+                                  {item.price && item.shares && (
+                                    <span className="text-[10px] text-slate-400 font-normal">
+                                      (¥{item.price.toLocaleString()}×{item.shares}株)
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-right shrink-0 ml-2">
+                                  <span className="font-extrabold text-slate-800">
+                                    {item.displayRatio}%
+                                  </span>
+                                  {item.amount > 0 && (
+                                    <span className="text-[10px] text-slate-400 ml-1 font-normal">
+                                      (¥{item.amount.toLocaleString()})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* バー本体 */}
+                              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all duration-300 ease-out"
+                                  style={{
+                                    width: `${barWidth}%`,
+                                    backgroundColor: item.color,
+                                    boxShadow: isHovered ? `0 0 10px ${item.color}bb` : 'none',
+                                    filter: isHovered ? 'brightness(1.08)' : 'brightness(1)',
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* 円グラフ表示 */
                       <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                         <div className="relative w-80 h-80 flex items-center justify-center">
                           <svg viewBox="0 0 200 200" className="w-full h-full">
@@ -524,18 +600,9 @@ export default function Home() {
                           )}
                         </div>
                       </div>
-                    ) : (
-                      <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner my-2">
-                        {displayItems.map((item, idx) => (
-                          <div
-                            key={idx}
-                            style={{ width: `${(item.weight / weightTotal) * 100}%`, backgroundColor: item.color }}
-                            title={`${item.name}: ${item.displayRatio}%`}
-                          />
-                        ))}
-                      </div>
                     )}
 
+                    {/* 下部凡例バッジ（触れたときに連動して強調） */}
                     <div className="flex flex-wrap gap-x-2.5 gap-y-1.5 text-xs text-slate-600 pt-1">
                       {displayItems.map((item, idx) => {
                         const isHovered = activeHoveredItem?.name === item.name;

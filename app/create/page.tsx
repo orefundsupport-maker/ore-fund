@@ -75,6 +75,8 @@ export default function CreateFundPage() {
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  // プレビューのグラフ形式（初期表示を bar 横棒グラフ に設定）
+  const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [items, setItems] = useState<FundItem[]>([
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
@@ -403,65 +405,164 @@ export default function CreateFundPage() {
           </div>
 
           {totalAmount > 0 && (
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center">
-              <span className="text-xs font-bold text-slate-400 mb-2">構成プレビュー</span>
-              <div className="relative w-64 h-64 flex items-center justify-center">
-                <svg viewBox="0 0 200 200" className="w-full h-full">
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+              {/* ヘッダー & グラフ切り替えタブ */}
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  構成プレビュー
+                </span>
+                <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setChartType('bar')}
+                    className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                      chartType === 'bar'
+                        ? 'bg-white text-indigo-600 shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    📊 横棒グラフ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChartType('pie')}
+                    className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                      chartType === 'pie'
+                        ? 'bg-white text-indigo-600 shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    🍕 円グラフ
+                  </button>
+                </div>
+              </div>
+
+              {chartType === 'bar' ? (
+                /* 横棒グラフプレビュー（初期表示） */
+                <div className="space-y-2 py-1">
                   {calculatedItems.map((item, idx) => {
                     if (item.amount <= 0) return null;
-                    const sliceAngle = (item.amount / totalAmount) * 360;
-                    const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
-                    const startAngle = currentAngle;
-                    const endAngle = currentAngle + safeAngle;
-                    currentAngle += safeAngle;
-
                     const isHovered = hoveredIndex === idx;
-                    const outerR = isHovered ? 92 : 86;
-                    const innerR = 48;
+                    const itemRatio = Math.floor((item.amount / totalAmount) * 100);
+                    const barWidth = Math.min(Math.max((item.amount / totalAmount) * 100, 2), 100);
 
                     return (
-                      <path
+                      <div
                         key={idx}
-                        d={getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle)}
-                        fill={item.color}
-                        className="transition-all duration-150 cursor-pointer"
-                        style={{
-                          opacity: hoveredIndex !== null && !isHovered ? 0.35 : 1,
-                        }}
                         onMouseEnter={() => setHoveredIndex(idx)}
                         onMouseLeave={() => setHoveredIndex(null)}
-                      />
+                        className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                          isHovered
+                            ? 'bg-slate-50 shadow-md -translate-y-0.5 scale-[1.01] border border-slate-200/80'
+                            : 'hover:bg-slate-50/60 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center text-xs mb-1.5">
+                          <div className="flex items-center gap-2 truncate">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform duration-200"
+                              style={{
+                                backgroundColor: item.color,
+                                transform: isHovered ? 'scale(1.3)' : 'scale(1)',
+                              }}
+                            />
+                            <span className={`truncate font-bold ${isHovered ? 'text-indigo-900' : 'text-slate-800'}`}>
+                              {item.name}
+                            </span>
+                            {item.price > 0 && item.shares > 0 && (
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                (¥{item.price.toLocaleString()}×{item.shares}株)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0 ml-2">
+                            <span className="font-extrabold text-slate-800">
+                              {itemRatio}%
+                            </span>
+                            <span className="text-[10px] text-slate-400 ml-1 font-normal">
+                              (¥{item.amount.toLocaleString()})
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* バー本体 */}
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-300 ease-out"
+                            style={{
+                              width: `${barWidth}%`,
+                              backgroundColor: item.color,
+                              boxShadow: isHovered ? `0 0 10px ${item.color}bb` : 'none',
+                              filter: isHovered ? 'brightness(1.08)' : 'brightness(1)',
+                            }}
+                          />
+                        </div>
+                      </div>
                     );
                   })}
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="47"
-                    fill="transparent"
-                    className="cursor-default"
-                    onMouseEnter={() => setHoveredIndex(null)}
-                  />
-                </svg>
-              </div>
+                </div>
+              ) : (
+                /* 円グラフプレビュー */
+                <div className="flex flex-col items-center">
+                  <div className="relative w-64 h-64 flex items-center justify-center">
+                    <svg viewBox="0 0 200 200" className="w-full h-full">
+                      {calculatedItems.map((item, idx) => {
+                        if (item.amount <= 0) return null;
+                        const sliceAngle = (item.amount / totalAmount) * 360;
+                        const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
+                        const startAngle = currentAngle;
+                        const endAngle = currentAngle + safeAngle;
+                        currentAngle += safeAngle;
 
-              <div className="h-7 mt-2 flex items-center justify-center text-xs">
-                {hoveredIndex !== null && calculatedItems[hoveredIndex]?.amount > 0 ? (
-                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: calculatedItems[hoveredIndex].color }}
-                    />
-                    <span className="font-bold text-slate-800">
-                      {calculatedItems[hoveredIndex].name}
-                    </span>
-                    <span className="font-bold text-indigo-600">
-                      {Math.floor((calculatedItems[hoveredIndex].amount / totalAmount) * 100)}%
-                    </span>
+                        const isHovered = hoveredIndex === idx;
+                        const outerR = isHovered ? 92 : 86;
+                        const innerR = 48;
+
+                        return (
+                          <path
+                            key={idx}
+                            d={getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle)}
+                            fill={item.color}
+                            className="transition-all duration-150 cursor-pointer"
+                            style={{
+                              opacity: hoveredIndex !== null && !isHovered ? 0.35 : 1,
+                            }}
+                            onMouseEnter={() => setHoveredIndex(idx)}
+                            onMouseLeave={() => setHoveredIndex(null)}
+                          />
+                        );
+                      })}
+                      <circle
+                        cx="100"
+                        cy="100"
+                        r="47"
+                        fill="transparent"
+                        className="cursor-default"
+                        onMouseEnter={() => setHoveredIndex(null)}
+                      />
+                    </svg>
                   </div>
-                ) : (
-                  <span className="text-slate-400">銘柄またはグラフに触れると詳細が表示されます</span>
-                )}
-              </div>
+
+                  <div className="h-7 mt-2 flex items-center justify-center text-xs">
+                    {hoveredIndex !== null && calculatedItems[hoveredIndex]?.amount > 0 ? (
+                      <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: calculatedItems[hoveredIndex].color }}
+                        />
+                        <span className="font-bold text-slate-800">
+                          {calculatedItems[hoveredIndex].name}
+                        </span>
+                        <span className="font-bold text-indigo-600">
+                          {Math.floor((calculatedItems[hoveredIndex].amount / totalAmount) * 100)}%
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">銘柄またはグラフに触れると詳細が表示されます</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

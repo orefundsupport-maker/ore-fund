@@ -6,36 +6,12 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
-function getDonutSlicePath(
-  cx: number, cy: number, rOuter: number, rInner: number,
-  startAngleDeg: number, endAngleDeg: number
-) {
-  const startRad = ((startAngleDeg - 90) * Math.PI) / 180;
-  const endRad = ((endAngleDeg - 90) * Math.PI) / 180;
-  const x1Outer = cx + rOuter * Math.cos(startRad);
-  const y1Outer = cy + rOuter * Math.sin(startRad);
-  const x2Outer = cx + rOuter * Math.cos(endRad);
-  const y2Outer = cy + rOuter * Math.sin(endRad);
-  const x1Inner = cx + rInner * Math.cos(endRad);
-  const y1Inner = cy + rInner * Math.sin(endRad);
-  const x2Inner = cx + rInner * Math.cos(startRad);
-  const y2Inner = cy + rInner * Math.sin(startRad);
-  const largeArcFlag = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
-  return [
-    `M ${x1Outer} ${y1Outer}`,
-    `A ${rOuter} ${rOuter} 0 ${largeArcFlag} 1 ${x2Outer} ${y2Outer}`,
-    `L ${x1Inner} ${y1Inner}`,
-    `A ${rInner} ${rInner} 0 ${largeArcFlag} 0 ${x2Inner} ${y2Inner}`,
-    'Z',
-  ].join(' ');
-}
-
 async function loadGoogleFont(font: string, text: string) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-    const url = `https://fonts.googleapis.com/css2?family=${font}:wght@700&text=${encodeURIComponent(text)}`;
+    const url = `https://fonts.googleapis.com/css2?family=${font}:wght@700;900&text=${encodeURIComponent(text)}`;
     const cssRes = await fetch(url, { signal: controller.signal });
     const css = await cssRes.text();
 
@@ -89,30 +65,34 @@ export async function GET(request: Request): Promise<Response> {
       const p = parseFloat(item?.price) || 0;
       const s = parseFloat(item?.shares) || 1;
       const amount = parseFloat(item?.amount) || p * s || 0;
+      const ratio = item?.ratio ? parseFloat(item.ratio) : 0;
       return {
         name: String(item?.name || `銘柄${idx + 1}`),
         amount,
+        ratio,
         color: item?.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
       };
     });
 
     const totalAmount = items.reduce((sum, i) => sum + i.amount, 0);
 
-    let currentAngle = 0;
-    const slices = items.map((item) => {
-      const ratio = totalAmount > 0 ? item.amount / totalAmount : 1 / (items.length || 1);
-      const sliceAngle = ratio * 360;
-      const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
-      const startAngle = currentAngle;
-      const endAngle = currentAngle + safeAngle;
-      currentAngle += safeAngle;
-
-      const path = getDonutSlicePath(130, 130, 110, 60, startAngle, endAngle);
-      const percent = Math.round(ratio * 100);
-      return { ...item, path, percent };
+    const calculatedItems = items.map((item) => {
+      let percent = item.ratio;
+      if (!percent && totalAmount > 0) {
+        percent = Math.round((item.amount / totalAmount) * 100);
+      }
+      if (!percent) {
+        percent = Math.round(100 / (items.length || 1));
+      }
+      return {
+        ...item,
+        percent,
+      };
     });
 
-    const fontText = `${title}${author}${description}俺ファンド銘柄他0123456789%@◆`;
+    // 動的フォント取得用テキスト
+    const itemNames = items.map((i) => i.name).join('');
+    const fontText = `${title}${author}${description}${itemNames}俺ファンド構成銘柄他0123456789%@◆:¥`;
     const fontData = await loadGoogleFont('Noto+Sans+JP', fontText);
 
     const fontsConfig = fontData
@@ -126,78 +106,179 @@ export async function GET(request: Request): Promise<Response> {
             height: '100%',
             width: '100%',
             display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: 'column',
             justifyContent: 'space-between',
             backgroundColor: '#090d16',
-            padding: '50px',
+            padding: '45px 55px',
             fontFamily: fontData ? 'NotoSansJP, sans-serif' : 'sans-serif',
           }}
         >
-          {/* 左: ドーナツチャート */}
-          <div style={{ display: 'flex', width: 280, height: 280, flexShrink: 0 }}>
-            <svg width="280" height="280" viewBox="0 0 260 260">
-              {slices.map((s, i) => (
-                <path key={i} d={s.path} fill={s.color} />
-              ))}
-              <circle cx="130" cy="130" r="58" fill="#090d16" />
-            </svg>
-          </div>
-
-          {/* 右: テキスト情報 */}
+          {/* 上部: サービスバッジ & 投稿者情報 */}
           <div
             style={{
               display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              height: '100%',
-              marginLeft: 50,
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: '100%',
             }}
           >
-            <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, color: '#38bdf8' }}>
-              俺ファンド | ポートフォリオ共有
-            </div>
-
             <div
               style={{
                 display: 'flex',
-                fontSize: 48,
-                fontWeight: 700,
+                alignItems: 'center',
+                backgroundColor: '#38bdf8',
+                color: '#090d16',
+                padding: '6px 18px',
+                borderRadius: '9999px',
+                fontSize: 20,
+                fontWeight: 900,
+              }}
+            >
+              俺ファンド
+            </div>
+            <div style={{ display: 'flex', fontSize: 20, color: '#94a3b8', fontWeight: 700 }}>
+              @{author} のポートフォリオ
+            </div>
+          </div>
+
+          {/* タイトル & 説明文 */}
+          <div style={{ display: 'flex', flexDirection: 'column', margin: '4px 0' }}>
+            <div
+              style={{
+                display: 'flex',
+                fontSize: 40,
+                fontWeight: 900,
                 color: '#f8fafc',
-                marginTop: 24,
-                lineHeight: 1.3,
+                lineHeight: 1.2,
+                maxWidth: '1080px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               {title}
             </div>
+          </div>
 
-            <div
-              style={{
-                display: 'flex',
-                fontSize: 22,
-                color: '#94a3b8',
-                marginTop: 14,
-              }}
-            >
-              {description.length > 40 ? description.slice(0, 40) + '…' : description}
+          {/* メイン: 横棒グラフ（バーチャート）エリア */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              backgroundColor: '#131b2e',
+              padding: '20px 24px',
+              borderRadius: '20px',
+              border: '1px solid #1e293b',
+            }}
+          >
+            {calculatedItems.slice(0, 4).map((item, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  width: '100%',
+                }}
+              >
+                {/* 銘柄名 & ％ */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '50%',
+                        backgroundColor: item.color,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 22,
+                        fontWeight: 700,
+                        color: '#f1f5f9',
+                        maxWidth: '750px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 900,
+                      color: '#ffffff',
+                    }}
+                  >
+                    {item.percent}%
+                  </span>
+                </div>
+
+                {/* 横棒バー本体 */}
+                <div
+                  style={{
+                    display: 'flex',
+                    width: '100%',
+                    height: '14px',
+                    backgroundColor: '#1e293b',
+                    borderRadius: '9999px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.min(Math.max(item.percent, 3), 100)}%`,
+                      height: '100%',
+                      backgroundColor: item.color,
+                      borderRadius: '9999px',
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+
+            {calculatedItems.length > 4 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  fontSize: 16,
+                  color: '#94a3b8',
+                  marginTop: '2px',
+                }}
+              >
+                他 {calculatedItems.length - 4} 銘柄
+              </div>
+            )}
+          </div>
+
+          {/* フッター */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: '100%',
+              borderTop: '1px solid #334155',
+              paddingTop: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', fontSize: 18, color: '#64748b' }}>
+              あなたならどう組む？仮想ポートフォリオ共有プラットフォーム
             </div>
-
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                width: '100%',
-                marginTop: 'auto',
-                borderTop: '1px solid #334155',
-                paddingTop: 20,
-              }}
-            >
-              <div style={{ display: 'flex', fontSize: 22, color: '#cbd5e1' }}>
-                作成者: {author}
-              </div>
-              <div style={{ display: 'flex', fontSize: 20, color: '#64748b' }}>
-                {items.length}銘柄 / ore-fund.vercel.app
-              </div>
+            <div style={{ display: 'flex', fontSize: 18, color: '#38bdf8', fontWeight: 700 }}>
+              ore-fund.vercel.app
             </div>
           </div>
         </div>

@@ -102,8 +102,9 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
 
   const [fund, setFund] = useState<Fund | null>(null);
   const [loading, setLoading] = useState(true);
-  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
-  const [hoveredItem, setHoveredItem] = useState<{ name: string; ratio: number; color: string } | null>(null);
+  // 初期表示を「bar（横棒グラフ）」に設定
+  const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
+  const [hoveredItem, setHoveredItem] = useState<{ name: string; ratio: number; color: string; amount?: number; price?: number; shares?: number } | null>(null);
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -321,6 +322,17 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
                 <button
                   type="button"
+                  onClick={() => setChartType('bar')}
+                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                    chartType === 'bar'
+                      ? 'bg-white text-indigo-600 shadow-2xs'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  📊 横棒グラフ
+                </button>
+                <button
+                  type="button"
                   onClick={() => setChartType('pie')}
                   className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                     chartType === 'pie'
@@ -330,21 +342,75 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 >
                   🍕 円グラフ
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setChartType('bar')}
-                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
-                    chartType === 'bar'
-                      ? 'bg-white text-indigo-600 shadow-2xs'
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  📊 バー
-                </button>
               </div>
             </div>
 
-            {chartType === 'pie' ? (
+            {chartType === 'bar' ? (
+              /* 横棒グラフ表示（初期表示） */
+              <div className="space-y-2 py-2 px-1">
+                {displayItems.map((item, idx) => {
+                  const isHovered = hoveredItem?.name === item.name;
+                  const barWidth = Math.min(Math.max((item.weight / weightTotal) * 100, 2), 100);
+
+                  return (
+                    <div
+                      key={idx}
+                      onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.amount, price: item.price, shares: item.shares })}
+                      onMouseLeave={() => setHoveredItem(null)}
+                      className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                        isHovered
+                          ? 'bg-slate-50 shadow-md -translate-y-0.5 scale-[1.01] border border-slate-200/80'
+                          : 'hover:bg-slate-50/60 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center text-xs mb-1.5">
+                        <div className="flex items-center gap-2 truncate">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform duration-200"
+                            style={{
+                              backgroundColor: item.color,
+                              transform: isHovered ? 'scale(1.3)' : 'scale(1)',
+                            }}
+                          />
+                          <span className={`truncate font-bold ${isHovered ? 'text-indigo-900' : 'text-slate-800'}`}>
+                            {item.name}
+                          </span>
+                          {item.price && item.shares && (
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              (¥{item.price.toLocaleString()}×{item.shares}株)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <span className="font-extrabold text-slate-800">
+                            {item.displayRatio}%
+                          </span>
+                          {item.amount > 0 && (
+                            <span className="text-[10px] text-slate-400 ml-1 font-normal">
+                              (¥{item.amount.toLocaleString()})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* バー本体 */}
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300 ease-out"
+                          style={{
+                            width: `${barWidth}%`,
+                            backgroundColor: item.color,
+                            boxShadow: isHovered ? `0 0 10px ${item.color}bb` : 'none',
+                            filter: isHovered ? 'brightness(1.08)' : 'brightness(1)',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* 円グラフ表示 */
               <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                 <div className="relative w-80 h-80 flex items-center justify-center">
                   <svg viewBox="0 0 200 200" className="w-full h-full">
@@ -373,7 +439,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                           style={{
                             opacity: hoveredItem && !isHovered ? 0.35 : 1,
                           }}
-                          onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color })}
+                          onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.amount, price: item.price, shares: item.shares })}
                           onMouseLeave={() => setHoveredItem(null)}
                         />
                       );
@@ -416,42 +482,50 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="h-6 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner my-2">
-                {displayItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    style={{ width: `${(item.weight / weightTotal) * 100}%`, backgroundColor: item.color }}
-                    title={`${item.name}: ${item.displayRatio}%`}
-                  />
-                ))}
-              </div>
             )}
 
+            {/* 銘柄一覧リスト（ホバー連動） */}
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
-              {displayItems.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center p-3 text-sm bg-white">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <div>
-                      <span className="font-medium text-slate-800">{item.name}</span>
-                      {item.price && item.shares ? (
-                        <span className="text-xs text-slate-400 block">
-                          ¥{item.price.toLocaleString()} × {item.shares}株
+              {displayItems.map((item, idx) => {
+                const isHovered = hoveredItem?.name === item.name;
+                return (
+                  <div
+                    key={idx}
+                    onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.amount, price: item.price, shares: item.shares })}
+                    onMouseLeave={() => setHoveredItem(null)}
+                    className={`flex justify-between items-center p-3 text-sm transition-all duration-150 cursor-pointer ${
+                      isHovered ? 'bg-indigo-50/70 pl-4' : 'bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0 transition-transform duration-150"
+                        style={{
+                          backgroundColor: item.color,
+                          transform: isHovered ? 'scale(1.25)' : 'scale(1)',
+                        }}
+                      />
+                      <div>
+                        <span className={`font-medium ${isHovered ? 'text-indigo-900 font-bold' : 'text-slate-800'}`}>
+                          {item.name}
                         </span>
-                      ) : item.amount ? (
-                        <span className="text-xs text-slate-400 block">
-                          ¥{item.amount.toLocaleString()}
-                        </span>
-                      ) : null}
+                        {item.price && item.shares ? (
+                          <span className="text-xs text-slate-400 block">
+                            ¥{item.price.toLocaleString()} × {item.shares}株
+                          </span>
+                        ) : item.amount ? (
+                          <span className="text-xs text-slate-400 block">
+                            ¥{item.amount.toLocaleString()}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
+                    <span className={`font-bold ${isHovered ? 'text-indigo-900 font-extrabold' : 'text-slate-900'}`}>
+                      {item.displayRatio}%
+                    </span>
                   </div>
-                  <span className="font-bold text-slate-900">{item.displayRatio}%</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
