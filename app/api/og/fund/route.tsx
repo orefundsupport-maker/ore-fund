@@ -6,10 +6,24 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
+// データベースに無い場合のデフォルト（大谷ファンド）
+const OHTANI_SAMPLE_FUND = {
+  id: '1',
+  title: '大谷CM採用企業ポートフォリオ',
+  author: '大谷ファン',
+  description: '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！',
+  items: [
+    { name: 'コーセー', ratio: 30, color: '#3B82F6' },
+    { name: '伊藤園', ratio: 30, color: '#10B981' },
+    { name: 'セイコーグループ', ratio: 20, color: '#F59E0B' },
+    { name: '西川', ratio: 20, color: '#EC4899' },
+  ],
+};
+
 async function loadGoogleFont(font: string, text: string) {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
 
     const url = `https://fonts.googleapis.com/css2?family=${font}:wght@700;900&text=${encodeURIComponent(text)}`;
     const cssRes = await fetch(url, { signal: controller.signal });
@@ -36,15 +50,20 @@ export async function GET(request: Request): Promise<Response> {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) return new Response('Missing Fund ID', { status: 400 });
+    let fund: any = OHTANI_SAMPLE_FUND;
 
-    const { data: fund, error } = await supabase
-      .from('funds')
-      .select('*')
-      .eq('id', id)
-      .single();
+    // IDが指定されており、かつ1以外の場合はDBから取得を試みる
+    if (id && id !== '1') {
+      const { data, error } = await supabase
+        .from('funds')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    if (error || !fund) return new Response('Fund Not Found', { status: 404 });
+      if (!error && data) {
+        fund = data;
+      }
+    }
 
     const title = fund.title || '無題のファンド';
     const author = fund.author || '名無し投資家';
@@ -59,6 +78,10 @@ export async function GET(request: Request): Promise<Response> {
       } catch {
         rawItems = [];
       }
+    }
+
+    if (rawItems.length === 0 && fund.items) {
+      rawItems = fund.items;
     }
 
     const items = rawItems.map((item, idx) => {
@@ -109,11 +132,11 @@ export async function GET(request: Request): Promise<Response> {
             flexDirection: 'column',
             justifyContent: 'space-between',
             backgroundColor: '#090d16',
-            padding: '45px 55px',
+            padding: '50px 60px',
             fontFamily: fontData ? 'NotoSansJP, sans-serif' : 'sans-serif',
           }}
         >
-          {/* 上部: サービスバッジ & 投稿者情報 */}
+          {/* 上部: サービスバッジ & 投稿者 */}
           <div
             style={{
               display: 'flex',
@@ -128,28 +151,28 @@ export async function GET(request: Request): Promise<Response> {
                 alignItems: 'center',
                 backgroundColor: '#38bdf8',
                 color: '#090d16',
-                padding: '6px 18px',
+                padding: '6px 20px',
                 borderRadius: '9999px',
-                fontSize: 20,
+                fontSize: 22,
                 fontWeight: 900,
               }}
             >
               俺ファンド
             </div>
-            <div style={{ display: 'flex', fontSize: 20, color: '#94a3b8', fontWeight: 700 }}>
+            <div style={{ display: 'flex', fontSize: 22, color: '#94a3b8', fontWeight: 700 }}>
               @{author} のポートフォリオ
             </div>
           </div>
 
-          {/* タイトル & 説明文 */}
-          <div style={{ display: 'flex', flexDirection: 'column', margin: '4px 0' }}>
+          {/* タイトル */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div
               style={{
                 display: 'flex',
-                fontSize: 40,
+                fontSize: 44,
                 fontWeight: 900,
                 color: '#f8fafc',
-                lineHeight: 1.2,
+                lineHeight: 1.25,
                 maxWidth: '1080px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -160,107 +183,78 @@ export async function GET(request: Request): Promise<Response> {
             </div>
           </div>
 
-          {/* メイン: 横棒グラフ（バーチャート）エリア */}
+          {/* メイン: 1本の連結スタックバー（帯グラフ） */}
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px',
+              gap: '16px',
               backgroundColor: '#131b2e',
-              padding: '20px 24px',
-              borderRadius: '20px',
+              padding: '24px 28px',
+              borderRadius: '24px',
               border: '1px solid #1e293b',
             }}
           >
-            {calculatedItems.slice(0, 4).map((item, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  width: '100%',
-                }}
-              >
-                {/* 銘柄名 & ％ */}
+            {/* 1本バー本体 */}
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                height: '42px',
+                backgroundColor: '#1e293b',
+                borderRadius: '9999px',
+                overflow: 'hidden',
+              }}
+            >
+              {calculatedItems.map((item, idx) => (
                 <div
+                  key={idx}
                   style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    width: '100%',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div
-                      style={{
-                        width: '14px',
-                        height: '14px',
-                        borderRadius: '50%',
-                        backgroundColor: item.color,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: 22,
-                        fontWeight: 700,
-                        color: '#f1f5f9',
-                        maxWidth: '750px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {item.name}
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 24,
-                      fontWeight: 900,
-                      color: '#ffffff',
-                    }}
-                  >
-                    {item.percent}%
-                  </span>
-                </div>
-
-                {/* 横棒バー本体 */}
-                <div
-                  style={{
-                    display: 'flex',
-                    width: '100%',
-                    height: '14px',
-                    backgroundColor: '#1e293b',
-                    borderRadius: '9999px',
+                    justifyContent: 'center',
+                    width: `${Math.max(item.percent, 3)}%`,
+                    height: '100%',
+                    backgroundColor: item.color,
+                    color: '#ffffff',
+                    fontSize: 16,
+                    fontWeight: 900,
                     overflow: 'hidden',
                   }}
                 >
+                  {item.percent >= 10 ? `${item.percent}%` : ''}
+                </div>
+              ))}
+            </div>
+
+            {/* 銘柄一覧バッジ（色＋銘柄名＋％） */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '12px 20px',
+                alignItems: 'center',
+              }}
+            >
+              {calculatedItems.map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div
                     style={{
-                      width: `${Math.min(Math.max(item.percent, 3), 100)}%`,
-                      height: '100%',
+                      width: '14px',
+                      height: '14px',
+                      borderRadius: '50%',
                       backgroundColor: item.color,
-                      borderRadius: '9999px',
                     }}
                   />
+                  <span style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>
+                    {item.name}
+                  </span>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: item.color }}>
+                    {item.percent}%
+                  </span>
                 </div>
-              </div>
-            ))}
-
-            {calculatedItems.length > 4 && (
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  fontSize: 16,
-                  color: '#94a3b8',
-                  marginTop: '2px',
-                }}
-              >
-                他 {calculatedItems.length - 4} 銘柄
-              </div>
-            )}
+              ))}
+            </div>
           </div>
 
           {/* フッター */}
@@ -271,7 +265,7 @@ export async function GET(request: Request): Promise<Response> {
               alignItems: 'center',
               width: '100%',
               borderTop: '1px solid #334155',
-              paddingTop: '12px',
+              paddingTop: '16px',
             }}
           >
             <div style={{ display: 'flex', fontSize: 18, color: '#64748b' }}>
