@@ -32,14 +32,25 @@ function getDonutSlicePath(
 }
 
 async function loadGoogleFont(font: string, text: string) {
-  const url = `https://fonts.googleapis.com/css2?family=${font}:wght@700&text=${encodeURIComponent(text)}`;
-  const css = await (await fetch(url)).text();
-  const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/);
-  if (resource) {
-    const res = await fetch(resource[1]);
-    if (res.status === 200) {
-      return await res.arrayBuffer();
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+
+    const url = `https://fonts.googleapis.com/css2?family=${font}:wght@700&text=${encodeURIComponent(text)}`;
+    const cssRes = await fetch(url, { signal: controller.signal });
+    const css = await cssRes.text();
+    const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/);
+
+    if (resource) {
+      const fontRes = await fetch(resource[1], { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (fontRes.status === 200) {
+        return await fontRes.arrayBuffer();
+      }
     }
+    clearTimeout(timeoutId);
+  } catch (e) {
+    // タイムアウトまたは取得エラー時はシステムフォントへフォールバック
   }
   return null;
 }
@@ -67,7 +78,6 @@ export async function GET(request: Request): Promise<Response> {
     const author = fund.author || '名無し投資家';
     const description = fund.description || '俺ファンド - 仮想ポートフォリオ';
 
-    // items の安全なパース
     let rawItems: any[] = [];
     if (Array.isArray(fund.items)) {
       rawItems = fund.items;
@@ -93,7 +103,7 @@ export async function GET(request: Request): Promise<Response> {
     const totalAmount = items.reduce((sum, i) => sum + i.amount, 0);
 
     let currentAngle = 0;
-    const slices = items.map((item, idx) => {
+    const slices = items.map((item) => {
       const ratio = totalAmount > 0 ? item.amount / totalAmount : 1 / (items.length || 1);
       const sliceAngle = ratio * 360;
       const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
@@ -108,12 +118,7 @@ export async function GET(request: Request): Promise<Response> {
     });
 
     const fontText = `${title}${author}${description}俺ファンド銘柄他0123456789%@◆`;
-    let fontData: ArrayBuffer | null = null;
-    try {
-      fontData = await loadGoogleFont('Noto+Sans+JP', fontText);
-    } catch (e) {
-      fontData = null;
-    }
+    const fontData = await loadGoogleFont('Noto+Sans+JP', fontText);
 
     const fontsConfig = fontData
       ? [
@@ -141,7 +146,6 @@ export async function GET(request: Request): Promise<Response> {
             fontFamily: fontData ? 'NotoSansJP, sans-serif' : 'sans-serif',
           }}
         >
-          {/* 左側情報 */}
           <div
             style={{
               display: 'flex',
@@ -206,7 +210,6 @@ export async function GET(request: Request): Promise<Response> {
             </div>
           </div>
 
-          {/* 右側グラフ */}
           <div
             style={{
               display: 'flex',
