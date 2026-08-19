@@ -75,7 +75,6 @@ export default function CreateFundPage() {
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  // プレビューのグラフ形式（初期表示を bar 横棒グラフ に設定）
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [items, setItems] = useState<FundItem[]>([
     { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
@@ -133,7 +132,6 @@ export default function CreateFundPage() {
     const newItems = [...items];
     let processedValue = value;
 
-    // 銘柄名入力欄でコード（4桁）が入力されたら自動で社名に置換
     if (field === 'name') {
       const matched = getCompanyNameByCode(value);
       if (matched) {
@@ -406,7 +404,6 @@ export default function CreateFundPage() {
 
           {totalAmount > 0 && (
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-              {/* ヘッダー & グラフ切り替えタブ */}
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                   構成プレビュー
@@ -421,7 +418,7 @@ export default function CreateFundPage() {
                         : 'text-slate-400 hover:text-slate-600'
                     }`}
                   >
-                    📊 横棒グラフ
+                    📊 1本バー
                   </button>
                   <button
                     type="button"
@@ -438,68 +435,59 @@ export default function CreateFundPage() {
               </div>
 
               {chartType === 'bar' ? (
-                /* 横棒グラフプレビュー（初期表示） */
-                <div className="space-y-2 py-1">
-                  {calculatedItems.map((item, idx) => {
-                    if (item.amount <= 0) return null;
-                    const isHovered = hoveredIndex === idx;
-                    const itemRatio = Math.floor((item.amount / totalAmount) * 100);
-                    const barWidth = Math.min(Math.max((item.amount / totalAmount) * 100, 2), 100);
+                /* 1本の横棒スタックバー（帯グラフ） */
+                <div className="py-2">
+                  <div className="h-9 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner p-1 gap-1 items-center">
+                    {calculatedItems.map((item, idx) => {
+                      if (item.amount <= 0) return null;
+                      const isHovered = hoveredIndex === idx;
+                      const itemRatio = Math.floor((item.amount / totalAmount) * 100);
 
-                    return (
-                      <div
-                        key={idx}
-                        onMouseEnter={() => setHoveredIndex(idx)}
-                        onMouseLeave={() => setHoveredIndex(null)}
-                        className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
-                          isHovered
-                            ? 'bg-slate-50 shadow-md -translate-y-0.5 scale-[1.01] border border-slate-200/80'
-                            : 'hover:bg-slate-50/60 border border-transparent'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center text-xs mb-1.5">
-                          <div className="flex items-center gap-2 truncate">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform duration-200"
-                              style={{
-                                backgroundColor: item.color,
-                                transform: isHovered ? 'scale(1.3)' : 'scale(1)',
-                              }}
-                            />
-                            <span className={`truncate font-bold ${isHovered ? 'text-indigo-900' : 'text-slate-800'}`}>
-                              {item.name}
-                            </span>
-                            {item.price > 0 && item.shares > 0 && (
-                              <span className="text-[10px] text-slate-400 font-normal">
-                                (¥{item.price.toLocaleString()}×{item.shares}株)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-right shrink-0 ml-2">
-                            <span className="font-extrabold text-slate-800">
+                      return (
+                        <div
+                          key={idx}
+                          onMouseEnter={() => setHoveredIndex(idx)}
+                          onMouseLeave={() => setHoveredIndex(null)}
+                          style={{
+                            flexGrow: item.amount,
+                            backgroundColor: item.color,
+                            minWidth: '18px',
+                            transform: isHovered ? 'scaleY(1.22)' : 'scaleY(1)',
+                            boxShadow: isHovered ? `0 0 12px ${item.color}` : 'none',
+                            filter: isHovered ? 'brightness(1.12)' : 'brightness(1)',
+                            zIndex: isHovered ? 10 : 1,
+                          }}
+                          className="h-full first:rounded-l-full last:rounded-r-full transition-all duration-200 cursor-pointer flex items-center justify-center overflow-hidden shrink-0"
+                          title={`${item.name}: ${itemRatio}%`}
+                        >
+                          {itemRatio >= 8 && (
+                            <span className="text-[11px] font-black text-white drop-shadow-xs truncate px-1 select-none">
                               {itemRatio}%
                             </span>
-                            <span className="text-[10px] text-slate-400 ml-1 font-normal">
-                              (¥{item.amount.toLocaleString()})
-                            </span>
-                          </div>
+                          )}
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {/* バー本体 */}
-                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-300 ease-out"
-                            style={{
-                              width: `${barWidth}%`,
-                              backgroundColor: item.color,
-                              boxShadow: isHovered ? `0 0 10px ${item.color}bb` : 'none',
-                              filter: isHovered ? 'brightness(1.08)' : 'brightness(1)',
-                            }}
-                          />
-                        </div>
+                  <div className="h-7 mt-2 flex items-center justify-center text-xs">
+                    {hoveredIndex !== null && calculatedItems[hoveredIndex]?.amount > 0 ? (
+                      <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200 shadow-2xs">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: calculatedItems[hoveredIndex].color }}
+                        />
+                        <span className="font-bold text-slate-800">
+                          {calculatedItems[hoveredIndex].name}
+                        </span>
+                        <span className="font-black text-indigo-600">
+                          {Math.floor((calculatedItems[hoveredIndex].amount / totalAmount) * 100)}%
+                        </span>
                       </div>
-                    );
-                  })}
+                    ) : (
+                      <span className="text-slate-400">バーに触れると詳細が表示されます</span>
+                    )}
+                  </div>
                 </div>
               ) : (
                 /* 円グラフプレビュー */

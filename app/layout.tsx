@@ -13,6 +13,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// 大谷翔平ファンド（ID: 1）のOGP画像URL
+const topOgpImageUrl = "https://ore-fund.vercel.app/api/og/fund?id=1&t=20260820v1";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://ore-fund.vercel.app"),
   title: {
@@ -27,11 +30,20 @@ export const metadata: Metadata = {
     siteName: "俺ファンド",
     locale: "ja_JP",
     type: "website",
+    images: [
+      {
+        url: topOgpImageUrl,
+        width: 1200,
+        height: 630,
+        alt: "大谷CM採用企業ポートフォリオ - 俺ファンド",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "俺ファンド - 理想の仮想ポートフォリオ作成・共有サービス",
     description: "自分だけのオリジナル投資信託・株式ポートフォリオを作成して共有できるプラットフォーム「俺ファンド」。",
+    images: [topOgpImageUrl],
   },
   verification: {
     google: "Fq1AsRfZt9tHMSRxU1fY0AyHzWCWopdoqQ8X0hJcXJ0",
