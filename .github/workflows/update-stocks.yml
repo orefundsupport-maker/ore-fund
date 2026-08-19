@@ -12,28 +12,28 @@ jobs:
       contents: write
 
     steps:
-      - name: リポジトリをチェックアウト
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Node.js のセットアップ
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: 依存パッケージのインストール
+      - name: Install dependencies
         run: npm ci || npm install
 
-      - name: 銘柄マスター自動更新スクリプトの実行
+      - name: Run update script
         run: node scripts/update-stock-master.js
 
-      - name: 変更があればコミット＆プッシュ
+      - name: Commit and push if changed
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           if git status --porcelain | grep -q "app/lib/stockMaster.ts"; then
             git add app/lib/stockMaster.ts
-            git commit -m "chore: [自動] 東証銘柄マスターを月次更新"
+            git commit -m "chore: [auto] update stock master"
             git push origin main
           else
-            echo "変更はありませんでした。"
+            echo "No changes detected."
           fi
