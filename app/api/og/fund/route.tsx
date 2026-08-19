@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
 
-// データベースに無い場合のデフォルト（大谷ファンド）
 const OHTANI_SAMPLE_FUND = {
   id: '1',
   title: '大谷CM採用企業ポートフォリオ',
@@ -20,31 +19,6 @@ const OHTANI_SAMPLE_FUND = {
   ],
 };
 
-async function loadGoogleFont(font: string, text: string) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-    const url = `https://fonts.googleapis.com/css2?family=${font}:wght@700;900&text=${encodeURIComponent(text)}`;
-    const cssRes = await fetch(url, { signal: controller.signal });
-    const css = await cssRes.text();
-
-    const resource = css.match(/src: url\(([^)]+)\) format\('(opentype|truetype)'\)/);
-
-    if (resource) {
-      const fontRes = await fetch(resource[1], { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (fontRes.status === 200) {
-        return await fontRes.arrayBuffer();
-      }
-    }
-    clearTimeout(timeoutId);
-  } catch (e) {
-    console.error('font load failed:', e);
-  }
-  return null;
-}
-
 export async function GET(request: Request): Promise<Response> {
   try {
     const { searchParams } = new URL(request.url);
@@ -52,7 +26,6 @@ export async function GET(request: Request): Promise<Response> {
 
     let fund: any = OHTANI_SAMPLE_FUND;
 
-    // IDが指定されており、かつ1以外の場合はDBから取得を試みる
     if (id && id !== '1') {
       const { data, error } = await supabase
         .from('funds')
@@ -67,7 +40,6 @@ export async function GET(request: Request): Promise<Response> {
 
     const title = fund.title || '無題のファンド';
     const author = fund.author || '名無し投資家';
-    const description = fund.description || '俺ファンド - 仮想ポートフォリオ';
 
     let rawItems: any[] = [];
     if (Array.isArray(fund.items)) {
@@ -113,15 +85,6 @@ export async function GET(request: Request): Promise<Response> {
       };
     });
 
-    // 動的フォント取得用テキスト
-    const itemNames = items.map((i) => i.name).join('');
-    const fontText = `${title}${author}${description}${itemNames}俺ファンド構成銘柄他0123456789%@◆:¥`;
-    const fontData = await loadGoogleFont('Noto+Sans+JP', fontText);
-
-    const fontsConfig = fontData
-      ? [{ name: 'NotoSansJP', data: fontData, style: 'normal' as const, weight: 700 as const }]
-      : [];
-
     return new ImageResponse(
       (
         <div
@@ -133,10 +96,10 @@ export async function GET(request: Request): Promise<Response> {
             justifyContent: 'space-between',
             backgroundColor: '#090d16',
             padding: '50px 60px',
-            fontFamily: fontData ? 'NotoSansJP, sans-serif' : 'sans-serif',
+            fontFamily: 'sans-serif',
           }}
         >
-          {/* 上部: サービスバッジ & 投稿者 */}
+          {/* 上部: バッジ & 投稿者 */}
           <div
             style={{
               display: 'flex',
@@ -183,7 +146,7 @@ export async function GET(request: Request): Promise<Response> {
             </div>
           </div>
 
-          {/* メイン: 1本の連結スタックバー（帯グラフ） */}
+          {/* メイン: 1本スタックバー（帯グラフ） */}
           <div
             style={{
               display: 'flex',
@@ -195,7 +158,7 @@ export async function GET(request: Request): Promise<Response> {
               border: '1px solid #1e293b',
             }}
           >
-            {/* 1本バー本体 */}
+            {/* 1本バー */}
             <div
               style={{
                 display: 'flex',
@@ -227,7 +190,7 @@ export async function GET(request: Request): Promise<Response> {
               ))}
             </div>
 
-            {/* 銘柄一覧バッジ（色＋銘柄名＋％） */}
+            {/* 銘柄一覧バッジ */}
             <div
               style={{
                 display: 'flex',
@@ -280,7 +243,6 @@ export async function GET(request: Request): Promise<Response> {
       {
         width: 1200,
         height: 630,
-        fonts: fontsConfig,
         headers: {
           'Cache-Control': 'public, max-age=31536000, immutable',
         },
