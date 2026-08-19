@@ -1,44 +1,39 @@
-# .github/workflows/update-stocks.yml
 name: Update Stock Master Monthly
 
 on:
   schedule:
-    # æ¯æœˆ5æ—¥ã®æ—¥æœ¬æ™‚é–“åˆå‰10æ™‚ï¼ˆUTC 1:00ï¼‰ã«è‡ªå‹•å®Ÿè¡Œ
     - cron: '0 1 5 * *'
-  # GitHubã®ç”»é¢ã‹ã‚‰æ‰‹å‹•å®Ÿè¡Œãƒœã‚¿ãƒ³ã‚’æŠ¼ã›ã‚‹ã‚ˆã†ã«ã™ã‚‹è¨­å®š
   workflow_dispatch:
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # ãƒªãƒã‚¸ãƒˆãƒªã¸ã®ãƒ—ãƒƒã‚·ãƒ¥æ¨©é™
+      contents: write
 
     steps:
-      - name: ãƒªãƒã‚¸ãƒˆãƒªã‚’ãƒã‚§ãƒƒã‚¯ã‚¢ã‚¦ãƒˆ
+      - name: ƒŠƒ|ƒWƒgƒŠ‚ğƒ`ƒFƒbƒNƒAƒEƒg
         uses: actions/checkout@v4
 
-      - name: Node.js ã®ã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—
+      - name: Node.js ‚ÌƒZƒbƒgƒAƒbƒv
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: ä¾å­˜ãƒ‘ãƒƒã‚±ãƒ¼ã‚¸ã®ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«
+      - name: ˆË‘¶ƒpƒbƒP[ƒW‚ÌƒCƒ“ƒXƒg[ƒ‹
         run: npm ci || npm install
 
-      - name: éŠ˜æŸ„ãƒã‚¹ã‚¿ãƒ¼è‡ªå‹•æ›´æ–°ã‚¹ã‚¯ãƒªãƒ—ãƒˆã®å®Ÿè¡Œ
+      - name: –Á•¿ƒ}ƒXƒ^[©“®XVƒXƒNƒŠƒvƒg‚ÌÀs
         run: node scripts/update-stock-master.js
 
-      - name: å¤‰æ›´ãŒã‚ã‚Œã°ã‚³ãƒŸãƒƒãƒˆï¼†ãƒ—ãƒƒã‚·ãƒ¥
+      - name: •ÏX‚ª‚ ‚ê‚ÎƒRƒ~ƒbƒg•ƒvƒbƒVƒ…
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # å·®åˆ†ãŒã‚ã‚‹ã‹ãƒã‚§ãƒƒã‚¯
           if git status --porcelain | grep -q "app/lib/stockMaster.ts"; then
             git add app/lib/stockMaster.ts
-            git commit -m "chore: [è‡ªå‹•] æ±è¨¼éŠ˜æŸ„ãƒã‚¹ã‚¿ãƒ¼ã‚’æœˆæ¬¡æ›´æ–°"
+            git commit -m "chore: [©“®] “ŒØ–Á•¿ƒ}ƒXƒ^[‚ğŒŸXV"
             git push origin main
           else
-            echo "å¤‰æ›´ã¯ã‚ã‚Šã¾ã›ã‚“ã§ã—ãŸã€‚"
+            echo "•ÏX‚Í‚ ‚è‚Ü‚¹‚ñ‚Å‚µ‚½B"
           fi
