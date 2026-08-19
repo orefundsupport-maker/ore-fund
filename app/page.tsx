@@ -70,7 +70,17 @@ const SAMPLE_FUNDS: Fund[] = [
   },
 ];
 
-type TabType = 'popular' | 'trending' | 'weekly';
+// 金額帯フィルタの定義（上限はundefinedで「それ以上」を表現）
+type AmountBandKey = 'all' | 'under5' | 'under10' | 'under15' | 'under20' | 'over20';
+
+const AMOUNT_BANDS: { key: AmountBandKey; label: string; min: number; max?: number }[] = [
+  { key: 'all', label: 'すべて', min: 0 },
+  { key: 'under5', label: '〜5万円', min: 0, max: 50000 },
+  { key: 'under10', label: '〜10万円', min: 50001, max: 100000 },
+  { key: 'under15', label: '〜15万円', min: 100001, max: 150000 },
+  { key: 'under20', label: '〜20万円', min: 150001, max: 200000 },
+  { key: 'over20', label: '20万円〜', min: 200001 },
+];
 
 function formatDate(dateString?: string): string {
   if (!dateString) return '';
@@ -82,70 +92,6 @@ function formatDate(dateString?: string): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${year}/${month}/${day} ${hours}:${minutes}`;
-}
-
-function RankingList({ funds }: { funds: Fund[] }) {
-  const [activeTab, setActiveTab] = useState<TabType>('popular');
-  const displayFunds = funds.length > 0 ? funds : SAMPLE_FUNDS;
-
-  return (
-    <div className="max-w-xl mx-auto my-6 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-      <div className="flex gap-4 border-b border-slate-100 pb-3 mb-4">
-        <button
-          onClick={() => setActiveTab('popular')}
-          className={`text-sm font-bold pb-1 transition ${
-            activeTab === 'popular'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
-              : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          🔥 人気
-        </button>
-        <button
-          onClick={() => setActiveTab('trending')}
-          className={`text-sm font-bold pb-1 transition ${
-            activeTab === 'trending'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
-              : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          🚀 急上昇
-        </button>
-        <button
-          onClick={() => setActiveTab('weekly')}
-          className={`text-sm font-bold pb-1 transition ${
-            activeTab === 'weekly'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
-              : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          🏆 週間ランキング
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        {displayFunds.slice(0, 3).map((item, index) => (
-          <a
-            key={item.id}
-            href={`/fund/${item.id}`}
-            className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition text-decoration-none"
-          >
-            <div className="flex items-center gap-3">
-              <span className="font-extrabold text-sm text-slate-400 w-4 text-center">
-                {index + 1}
-              </span>
-              <span className="text-xs font-bold text-slate-800 line-clamp-1">
-                {item.title}
-              </span>
-            </div>
-            <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full whitespace-nowrap">
-              {item.funny_count || 0} 納得！
-            </span>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function getDonutSlicePath(
@@ -185,6 +131,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
+  const [amountFilter, setAmountFilter] = useState<AmountBandKey>('all');
 
   const [chartTypes, setChartTypes] = useState<Record<string, 'pie' | 'bar'>>({});
   const [hoveredItems, setHoveredItems] = useState<Record<string, (FundItem & { ratio: number; displayAmount: number }) | null>>({});
@@ -261,24 +208,45 @@ export default function Home() {
     setSearchQuery(authorName);
   };
 
-  const filteredFunds = funds.filter((fund) => {
-    if (!searchQuery.trim()) return true;
-
-    const query = searchQuery.toLowerCase().trim();
-    const matchTitle = fund.title?.toLowerCase().includes(query);
-    const matchDescription = fund.description?.toLowerCase().includes(query);
-    const matchAuthor = fund.author?.toLowerCase().includes(query);
-    const matchItems = fund.items?.some((item) =>
-      item.name?.toLowerCase().includes(query)
+  // ファンドの合計金額を取得（total_amountが無ければitemsから計算）
+  const getFundTotalAmount = (fund: Fund): number => {
+    if (fund.total_amount) return Math.floor(Number(fund.total_amount));
+    return Math.floor(
+      (fund.items || []).reduce((sum, item) => {
+        const amount = item.amount ?? ((item.price || 0) * (item.shares || 0));
+        return sum + (amount || 0);
+      }, 0)
     );
+  };
 
-    return matchTitle || matchDescription || matchAuthor || matchItems;
+  const filteredFunds = funds.filter((fund) => {
+    // キーワード検索
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      const matchTitle = fund.title?.toLowerCase().includes(query);
+      const matchDescription = fund.description?.toLowerCase().includes(query);
+      const matchAuthor = fund.author?.toLowerCase().includes(query);
+      const matchItems = fund.items?.some((item) =>
+        item.name?.toLowerCase().includes(query)
+      );
+      if (!matchTitle && !matchDescription && !matchAuthor && !matchItems) return false;
+    }
+
+    // 金額帯フィルタ
+    if (amountFilter !== 'all') {
+      const band = AMOUNT_BANDS.find((b) => b.key === amountFilter)!;
+      const total = getFundTotalAmount(fund);
+      if (total < band.min) return false;
+      if (band.max !== undefined && total > band.max) return false;
+    }
+
+    return true;
   });
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
-        <a
+        
           href="/"
           className="text-xl font-bold text-indigo-600 hover:opacity-80 transition cursor-pointer"
           title="トップページへ戻る"
@@ -318,20 +286,33 @@ export default function Home() {
               </button>
             </div>
           )}
+
+          {/* 金額帯フィルタチップ */}
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
+            {AMOUNT_BANDS.map((band) => (
+              <button
+                key={band.key}
+                onClick={() => setAmountFilter(band.key)}
+                className={`flex-shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-full border transition ${
+                  amountFilter === band.key
+                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600'
+                }`}
+              >
+                {band.label}
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="flex justify-center pt-1">
-          <a
+          
             href="/create"
             className="w-full max-w-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-2xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 text-base active:scale-98"
           >
             <span className="text-lg">➕</span>
             <span>自分で作る</span>
           </a>
-        </section>
-
-        <section>
-          <RankingList funds={funds} />
         </section>
 
         <section className="space-y-4">
@@ -353,7 +334,6 @@ export default function Home() {
 
               const itemsList = fund.items || [];
 
-              // 金額・比率の切り捨て計算
               const formattedItems = itemsList.map((item, idx) => {
                 const name = (item.name || `銘柄${idx + 1}`).trim();
                 const price = item.price ? Number(item.price) : undefined;
@@ -376,7 +356,6 @@ export default function Home() {
                 ? Math.floor(Number(fund.total_amount))
                 : Math.floor(formattedItems.reduce((s, i) => s + (i.amount || 0), 0));
 
-              // 各銘柄の表示用比率（切り捨て）と、SVG角度計算用ウェイト
               const weightTotal = totalAmount > 0
                 ? totalAmount
                 : formattedItems.reduce((s, i) => s + (i.ratio || 1), 0) || 1;
@@ -396,7 +375,7 @@ export default function Home() {
               const formattedCreatedDate = formatDate(fund.created_at);
 
               return (
-                <a
+                
                   key={fund.id}
                   href={`/fund/${fund.id}`}
                   className="block bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition active:scale-98"
@@ -464,7 +443,6 @@ export default function Home() {
                             {displayItems.map((item, idx) => {
                               if (item.weight <= 0) return null;
 
-                              // 360度を正確な割合で分割し隙間をゼロに
                               const sliceAngle = (item.weight / weightTotal) * 360;
                               const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
 
@@ -624,7 +602,7 @@ export default function Home() {
 
         <footer className="pt-8 pb-4 text-center text-[11px] text-slate-400 space-y-3 border-t border-slate-200">
           <div className="pb-2">
-            <a
+            
               href="https://docs.google.com/forms/d/e/1FAIpQLScOBq_NVmGd5JBdc_KKNvTb6JI4wSBX7FRjhId5XIVzKZGHJw/viewform?usp=publish-editor"
               target="_blank"
               rel="noopener noreferrer"
