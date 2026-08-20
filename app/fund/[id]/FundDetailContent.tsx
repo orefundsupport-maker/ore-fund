@@ -42,9 +42,9 @@ const OHTANI_FUND_EXAMPLE: Fund = {
   description:
     '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
   items: [
-    { name: 'コーセー', ratio: 30, color: '#3B82F6' },
-    { name: '伊藤園', ratio: 30, color: '#10B981' },
-    { name: 'セイコーグループ', ratio: 20, color: '#F59E0B' },
+    { name: 'コーセー (4922)', ratio: 30, color: '#3B82F6' },
+    { name: '伊藤園 (2593)', ratio: 30, color: '#10B981' },
+    { name: 'セイコーグループ (8050)', ratio: 20, color: '#F59E0B' },
     { name: '西川', ratio: 20, color: '#EC4899' },
   ],
 };
@@ -284,6 +284,11 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
     window.open(twitterIntent, '_blank', 'noopener,noreferrer');
   };
 
+  const handleForkFund = () => {
+    if (!fund) return;
+    router.push(`/create?fork=${fund.id}`);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
@@ -516,7 +521,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 space-y-2.5">
             <button
               onClick={handleShareToX}
               className="w-full bg-black hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
@@ -525,6 +530,14 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
               </svg>
               <span>このファンドをポスト（共有）</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleForkFund}
+              className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2.5 px-4 rounded-xl border border-indigo-200 transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer text-xs"
+            >
+              <span>🍴 この構成をアレンジして作成（コピー）</span>
             </button>
           </div>
 

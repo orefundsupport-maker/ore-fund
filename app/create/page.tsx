@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 import { getCompanyNameByCode } from '@/app/lib/stockMaster';
 
@@ -66,8 +66,11 @@ function getDonutSlicePath(
   ].join(' ');
 }
 
-export default function CreateFundPage() {
+function CreateFundContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const forkId = searchParams.get('fork');
+
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [previewAuthor, setPreviewAuthor] = useState('');
@@ -93,6 +96,44 @@ export default function CreateFundPage() {
   useEffect(() => {
     refreshRandomSeed();
   }, []);
+
+  useEffect(() => {
+    async function loadForkedFund() {
+      if (!forkId) return;
+      const { data, error } = await supabase
+        .from('funds')
+        .select('*')
+        .eq('id', forkId)
+        .single();
+
+      if (!error && data) {
+        setTitle(data.title || '');
+        setDescription(data.description || '');
+
+        let rawItems: any[] = [];
+        if (Array.isArray(data.items)) {
+          rawItems = data.items;
+        } else if (typeof data.items === 'string') {
+          try {
+            rawItems = JSON.parse(data.items);
+          } catch {
+            rawItems = [];
+          }
+        }
+
+        if (rawItems.length > 0) {
+          const loadedItems: FundItem[] = rawItems.map((item, idx) => ({
+            name: item.name || '',
+            price: item.price !== undefined && item.price !== null ? String(item.price) : '',
+            shares: item.shares !== undefined && item.shares !== null ? String(item.shares) : '1',
+            color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
+          }));
+          setItems(loadedItems);
+        }
+      }
+    }
+    loadForkedFund();
+  }, [forkId]);
 
   useEffect(() => {
     async function updatePreview() {
@@ -132,10 +173,12 @@ export default function CreateFundPage() {
     const newItems = [...items];
     let processedValue = value;
 
+    // 4桁の銘柄コード入力時に「社名 (コード)」の形式で自動補完
     if (field === 'name') {
-      const matched = getCompanyNameByCode(value);
+      const codeTrimmed = value.trim();
+      const matched = getCompanyNameByCode(codeTrimmed);
       if (matched) {
-        processedValue = matched;
+        processedValue = `${matched} (${codeTrimmed})`;
       }
     }
 
@@ -235,7 +278,9 @@ export default function CreateFundPage() {
         >
           ← 戻る
         </button>
-        <h1 className="text-base font-bold text-slate-800">ファンド作成</h1>
+        <h1 className="text-base font-bold text-slate-800">
+          {forkId ? 'ファンドをアレンジ作成' : 'ファンド作成'}
+        </h1>
         <div className="w-10" />
       </header>
 
@@ -435,7 +480,6 @@ export default function CreateFundPage() {
               </div>
 
               {chartType === 'bar' ? (
-                /* 1本の横棒スタックバー（帯グラフ） */
                 <div className="py-2">
                   <div className="h-9 w-full rounded-full overflow-hidden flex bg-slate-100 shadow-inner p-1 gap-1 items-center">
                     {calculatedItems.map((item, idx) => {
@@ -490,7 +534,6 @@ export default function CreateFundPage() {
                   </div>
                 </div>
               ) : (
-                /* 円グラフプレビュー */
                 <div className="flex flex-col items-center">
                   <div className="relative w-64 h-64 flex items-center justify-center">
                     <svg viewBox="0 0 200 200" className="w-full h-full">
@@ -601,5 +644,13 @@ export default function CreateFundPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CreateFundPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 text-sm">読み込み中...</div>}>
+      <CreateFundContent />
+    </Suspense>
   );
 }
