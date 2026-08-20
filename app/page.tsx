@@ -59,7 +59,6 @@ function getDonutSlicePath(
   ].join(' ');
 }
 
-// カード単体コンポーネント（ホバー連動を個別に管理）
 function FundCard({
   fund,
   chartType,
@@ -96,7 +95,6 @@ function FundCard({
       onClick={onClick}
       className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-indigo-300 transition-all duration-200 cursor-pointer space-y-4"
     >
-      {/* カードヘッダー */}
       <div className="flex justify-between items-start gap-2">
         <div className="space-y-0.5 flex-grow min-w-0">
           <h4 className="font-extrabold text-slate-900 text-base leading-snug truncate">
@@ -111,17 +109,14 @@ function FundCard({
         )}
       </div>
 
-      {/* 説明文 */}
       {fund.description && (
         <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed bg-slate-50 p-3 rounded-2xl border border-slate-100">
           💬 {fund.description}
         </p>
       )}
 
-      {/* グラフ表示エリア */}
       {chartType === 'bar' ? (
         <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
-          {/* 1本スタックバー */}
           <div className="h-9 w-full bg-slate-100 rounded-full overflow-hidden flex gap-1 p-1 shadow-inner items-center">
             {formattedItems.map((item, idx) => {
               const pct = totalAmt > 0
@@ -158,7 +153,6 @@ function FundCard({
             })}
           </div>
 
-          {/* ホバー時にフワッと浮かび上がるチップ表示 */}
           <div className="h-7 flex items-center justify-center">
             {hoveredIdx !== null && formattedItems[hoveredIdx] ? (
               <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs shadow-2xs animate-in fade-in zoom-in-95 duration-150">
@@ -180,8 +174,7 @@ function FundCard({
             )}
           </div>
 
-          {/* 銘柄一覧バッジ */}
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center pt-0.5">
+          <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 items-center pt-0.5">
             {formattedItems.map((item, idx) => {
               const pct = totalAmt > 0
                 ? Math.floor((item.amount / totalAmt) * 100)
@@ -202,7 +195,7 @@ function FundCard({
                     className="w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="truncate max-w-[120px]">{item.name}</span>
+                  <span className="truncate max-w-[130px]">{item.name}</span>
                   <span className="font-black text-slate-900 text-[11px]">{pct}%</span>
                 </div>
               );
@@ -210,72 +203,100 @@ function FundCard({
           </div>
         </div>
       ) : (
-        /* 大きく迫力のある円グラフ（中央配置 ＆ ホバー浮き上がり） */
-        <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50/70 rounded-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-          <div className="relative w-60 h-60 flex items-center justify-center">
-            <svg viewBox="0 0 200 200" className="w-full h-full">
-              {formattedItems.map((item, idx) => {
-                const pct = totalAmt > 0
-                  ? Math.floor((item.amount / totalAmt) * 100)
-                  : item.ratio || Math.floor(100 / (formattedItems.length || 1));
+        <div className="space-y-3 pt-1" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-col items-center justify-center pt-2 pb-2 px-2 bg-slate-50/70 rounded-2xl border border-slate-100">
+            <div className="relative w-60 h-60 flex items-center justify-center">
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                {formattedItems.map((item, idx) => {
+                  const pct = totalAmt > 0
+                    ? Math.floor((item.amount / totalAmt) * 100)
+                    : item.ratio || Math.floor(100 / (formattedItems.length || 1));
 
-                if (pct <= 0) return null;
+                  if (pct <= 0) return null;
 
-                const sliceAngle = (pct / 100) * 360;
-                const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
-                const startAngle = currentAngle;
-                const endAngle = currentAngle + safeAngle;
-                currentAngle += safeAngle;
+                  const sliceAngle = (pct / 100) * 360;
+                  const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
+                  const startAngle = currentAngle;
+                  const endAngle = currentAngle + safeAngle;
+                  currentAngle += safeAngle;
 
-                const isHovered = hoveredIdx === idx;
-                const outerR = isHovered ? 92 : 86;
-                const innerR = 48;
+                  const isHovered = hoveredIdx === idx;
+                  const outerR = isHovered ? 92 : 86;
+                  const innerR = 48;
 
-                return (
-                  <path
-                    key={idx}
-                    d={getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle)}
-                    fill={item.color}
-                    className="transition-all duration-150 cursor-pointer"
-                    style={{
-                      opacity: hoveredIdx !== null && !isHovered ? 0.35 : 1,
-                    }}
-                    onMouseEnter={() => setHoveredIdx(idx)}
-                    onMouseLeave={() => setHoveredIdx(null)}
+                  return (
+                    <path
+                      key={idx}
+                      d={getDonutSlicePath(100, 100, outerR, innerR, startAngle, endAngle)}
+                      fill={item.color}
+                      className="transition-all duration-150 cursor-pointer"
+                      style={{
+                        opacity: hoveredIdx !== null && !isHovered ? 0.35 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredIdx(idx)}
+                      onMouseLeave={() => setHoveredIdx(null)}
+                    />
+                  );
+                })}
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="47"
+                  fill="transparent"
+                  className="cursor-default"
+                  onMouseEnter={() => setHoveredIdx(null)}
+                />
+              </svg>
+            </div>
+
+            <div className="h-7 mt-1 flex items-center justify-center">
+              {hoveredIdx !== null && formattedItems[hoveredIdx] ? (
+                <div className="flex items-center gap-1.5 bg-white px-3.5 py-1 rounded-full border border-slate-200 text-xs shadow-2xs animate-in fade-in zoom-in-95 duration-150">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: formattedItems[hoveredIdx].color }}
                   />
-                );
-              })}
-              <circle
-                cx="100"
-                cy="100"
-                r="47"
-                fill="transparent"
-                className="cursor-default"
-                onMouseEnter={() => setHoveredIdx(null)}
-              />
-            </svg>
+                  <span className="font-bold text-slate-800">
+                    {formattedItems[hoveredIdx].name}
+                  </span>
+                  <span className="font-black text-indigo-600">
+                    {totalAmt > 0
+                      ? Math.floor((formattedItems[hoveredIdx].amount / totalAmt) * 100)
+                      : formattedItems[hoveredIdx].ratio}%
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[11px] text-slate-400">グラフに触れると詳細が表示されます</span>
+              )}
+            </div>
           </div>
 
-          {/* ホバー時にフワッと浮かび上がるチップ表示 */}
-          <div className="h-7 mt-2 flex items-center justify-center">
-            {hoveredIdx !== null && formattedItems[hoveredIdx] ? (
-              <div className="flex items-center gap-1.5 bg-white px-3.5 py-1 rounded-full border border-slate-200 text-xs shadow-2xs animate-in fade-in zoom-in-95 duration-150">
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: formattedItems[hoveredIdx].color }}
-                />
-                <span className="font-bold text-slate-800">
-                  {formattedItems[hoveredIdx].name}
-                </span>
-                <span className="font-black text-indigo-600">
-                  {totalAmt > 0
-                    ? Math.floor((formattedItems[hoveredIdx].amount / totalAmt) * 100)
-                    : formattedItems[hoveredIdx].ratio}%
-                </span>
-              </div>
-            ) : (
-              <span className="text-[11px] text-slate-400">グラフに触れると詳細が表示されます</span>
-            )}
+          <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 items-center pt-0.5">
+            {formattedItems.map((item, idx) => {
+              const pct = totalAmt > 0
+                ? Math.floor((item.amount / totalAmt) * 100)
+                : item.ratio || Math.floor(100 / (formattedItems.length || 1));
+
+              const isHovered = hoveredIdx === idx;
+
+              return (
+                <div
+                  key={idx}
+                  onMouseEnter={() => setHoveredIdx(idx)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                  className={`flex items-center gap-1.5 text-xs transition-colors rounded-md px-1.5 py-0.5 cursor-pointer ${
+                    isHovered ? 'bg-indigo-50 font-bold text-indigo-900' : 'text-slate-700'
+                  }`}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="truncate max-w-[130px]">{item.name}</span>
+                  <span className="font-black text-slate-900 text-[11px]">{pct}%</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -306,6 +327,11 @@ export default function HomePage() {
     fetchFunds();
   }, []);
 
+  const handleResetToHome = () => {
+    setSelectedBudget('all');
+    router.push('/');
+  };
+
   const filteredFunds = funds.filter((fund) => {
     if (selectedBudget === 'all') return true;
 
@@ -331,12 +357,15 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-28 relative">
-      {/* ヘッダー */}
       <header className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3 shadow-xs flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleResetToHome}
+          className="flex items-center gap-2 hover:opacity-80 transition cursor-pointer text-left"
+        >
           <span className="text-xl">📊</span>
           <h1 className="text-base font-black text-slate-900 tracking-tight">俺ファンド</h1>
-        </div>
+        </button>
         <button
           type="button"
           onClick={() => router.push('/create')}
@@ -348,7 +377,6 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-5 space-y-5">
-        {/* メインバナー */}
         <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-5 text-white shadow-md space-y-2">
           <div className="flex items-center gap-2">
             <span className="bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-xs">
@@ -361,7 +389,6 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* 予算フィルター & グラフ切替タブ */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-500 font-bold px-1">
             <span>💰 予算で絞り込み</span>
@@ -412,7 +439,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ファンド一覧 */}
         {loading ? (
           <div className="text-center py-16 text-slate-400 text-sm">ファンドを読み込み中...</div>
         ) : filteredFunds.length === 0 ? (
@@ -442,7 +468,6 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* スクロール追従: 大きな「ファンドを作成する」ボタン */}
       <button
         type="button"
         onClick={() => router.push('/create')}

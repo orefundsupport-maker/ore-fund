@@ -290,7 +290,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 relative">
       <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
         <button
           onClick={() => router.push('/')}
@@ -608,6 +608,17 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
           </div>
         )}
       </main>
+
+      {/* スクロールしても常に画面右下に追従する「自分で作る」ボタン（X/Twitter投稿ボタン風） */}
+      <button
+        type="button"
+        onClick={() => router.push('/create')}
+        className="fixed bottom-6 right-5 z-40 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold px-4 py-3.5 rounded-full shadow-xl transition-all duration-200 flex items-center gap-2 text-xs cursor-pointer border border-white/20"
+        title="新しいファンドを作成"
+      >
+        <span className="text-base leading-none">＋</span>
+        <span>ファンドを作成</span>
+      </button>
     </div>
   );
 }
