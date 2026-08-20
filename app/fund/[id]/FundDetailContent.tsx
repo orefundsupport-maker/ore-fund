@@ -290,31 +290,44 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 relative">
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-28 relative">
+      <header className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3 shadow-xs flex items-center justify-between">
         <button
+          type="button"
           onClick={() => router.push('/')}
-          className="text-sm font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+          className="flex items-center gap-2 hover:opacity-80 transition cursor-pointer text-left"
         >
-          ← トップへ戻る
+          <span className="text-xl">📊</span>
+          <h1 className="text-base font-black text-slate-900 tracking-tight">俺ファンド</h1>
         </button>
-        <h1 className="text-base font-bold text-slate-800">ファンド詳細</h1>
-        <div className="w-10" />
+        <button
+          type="button"
+          onClick={() => router.push('/create')}
+          className="text-xs bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-full transition shadow-xs cursor-pointer flex items-center gap-1"
+        >
+          <span>＋</span>
+          <span>ファンドを作成する</span>
+        </button>
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-6 space-y-6">
-        <article className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-5">
+        <article className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
           <div className="flex justify-between items-center text-xs text-slate-500">
             <div>
               投稿者: <span className="font-bold text-slate-700">@{fund.author}</span>
               {formattedCreatedDate && ` ・ ${formattedCreatedDate}`}
             </div>
+            {totalAmount > 0 && (
+              <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl border border-indigo-100 shadow-2xs">
+                ¥{totalAmount.toLocaleString()}
+              </span>
+            )}
           </div>
 
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{fund.title}</h1>
-            <p className="text-sm text-slate-600 mt-2 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-              {fund.description || '説明はありません。'}
+            <h1 className="text-xl font-black text-slate-900">{fund.title}</h1>
+            <p className="text-sm text-slate-600 mt-2.5 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              💬 {fund.description || '説明はありません。'}
             </p>
           </div>
 
@@ -323,14 +336,14 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 📊 ポートフォリオ構成
               </h2>
-              <div className="flex bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
+              <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-[10px] font-bold">
                 <button
                   type="button"
                   onClick={() => setChartType('bar')}
-                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
                     chartType === 'bar'
                       ? 'bg-white text-indigo-600 shadow-2xs'
-                      : 'text-slate-400 hover:text-slate-600'
+                      : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   📊 1本バー
@@ -338,10 +351,10 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 <button
                   type="button"
                   onClick={() => setChartType('pie')}
-                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
                     chartType === 'pie'
                       ? 'bg-white text-indigo-600 shadow-2xs'
-                      : 'text-slate-400 hover:text-slate-600'
+                      : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   🍕 円グラフ
@@ -386,7 +399,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
 
                 <div className="h-7 mt-2 flex items-center justify-center">
                   {hoveredItem ? (
-                    <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs">
+                    <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs shadow-2xs animate-in fade-in zoom-in-95 duration-150">
                       <span
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: hoveredItem.color }}
@@ -395,17 +408,13 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                       <span className="font-black text-indigo-600">{hoveredItem.ratio}%</span>
                     </div>
                   ) : (
-                    totalAmount > 0 && (
-                      <span className="text-[11px] font-bold text-slate-400">
-                        合計設定額: ¥{totalAmount.toLocaleString()}
-                      </span>
-                    )
+                    <span className="text-[11px] text-slate-400">バーに触れると詳細が表示されます</span>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
-                <div className="relative w-80 h-80 flex items-center justify-center">
+              <div className="flex flex-col items-center justify-center pt-2 pb-3 px-2 bg-slate-50/70 rounded-2xl border border-slate-100 overflow-hidden">
+                <div className="relative w-72 h-72 flex items-center justify-center">
                   <svg viewBox="0 0 200 200" className="w-full h-full">
                     {displayItems.map((item, idx) => {
                       if (item.weight <= 0) return null;
@@ -449,35 +458,28 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                   </svg>
                 </div>
 
-                <div className="h-8 mt-1 flex items-center justify-center">
+                <div className="h-7 mt-2 flex items-center justify-center">
                   {hoveredItem ? (
-                    <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-2 bg-white px-3.5 py-1 rounded-full border border-slate-200 text-xs shadow-2xs animate-in fade-in zoom-in-95 duration-150">
                       <span
-                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: hoveredItem.color }}
                       />
-                      <span className="text-xs font-bold text-slate-800">
+                      <span className="font-bold text-slate-800">
                         {hoveredItem.name}
                       </span>
-                      <span
-                        className="text-xs font-black px-2 py-0.5 rounded-md text-white"
-                        style={{ backgroundColor: hoveredItem.color }}
-                      >
+                      <span className="font-black text-indigo-600">
                         {hoveredItem.ratio}%
                       </span>
                     </div>
                   ) : (
-                    totalAmount > 0 && (
-                      <span className="text-xs font-bold text-slate-600">
-                        合計設定額: ¥{totalAmount.toLocaleString()}
-                      </span>
-                    )
+                    <span className="text-[11px] text-slate-400">グラフに触れると詳細が表示されます</span>
                   )}
                 </div>
               </div>
             )}
 
-            <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
+            <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden mt-3 shadow-2xs">
               {displayItems.map((item, idx) => {
                 const isHovered = hoveredItem?.name === item.name;
                 return (
@@ -485,20 +487,20 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                     key={idx}
                     onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.amount, price: item.price, shares: item.shares })}
                     onMouseLeave={() => setHoveredItem(null)}
-                    className={`flex justify-between items-center p-3 text-sm transition-all duration-150 cursor-pointer ${
-                      isHovered ? 'bg-indigo-50/70 pl-4' : 'bg-white hover:bg-slate-50'
+                    className={`flex justify-between items-center p-3.5 text-sm transition-all duration-150 cursor-pointer ${
+                      isHovered ? 'bg-indigo-50/80 pl-5' : 'bg-white hover:bg-slate-50'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <span
                         className="w-3 h-3 rounded-full flex-shrink-0 transition-transform duration-150"
                         style={{
                           backgroundColor: item.color,
-                          transform: isHovered ? 'scale(1.25)' : 'scale(1)',
+                          transform: isHovered ? 'scale(1.3)' : 'scale(1)',
                         }}
                       />
                       <div>
-                        <span className={`font-medium ${isHovered ? 'text-indigo-900 font-bold' : 'text-slate-800'}`}>
+                        <span className={`font-medium ${isHovered ? 'text-indigo-950 font-bold' : 'text-slate-800'}`}>
                           {item.name}
                         </span>
                         {item.price && item.shares ? (
@@ -512,7 +514,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                         ) : null}
                       </div>
                     </div>
-                    <span className={`font-bold ${isHovered ? 'text-indigo-900 font-extrabold' : 'text-slate-900'}`}>
+                    <span className={`font-black ${isHovered ? 'text-indigo-900 font-extrabold' : 'text-slate-900'}`}>
                       {item.displayRatio}%
                     </span>
                   </div>
@@ -524,7 +526,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
           <div className="pt-2 space-y-2.5">
             <button
               onClick={handleShareToX}
-              className="w-full bg-black hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+              className="w-full bg-black hover:bg-slate-900 text-white font-bold py-3.5 px-4 rounded-2xl shadow transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
             >
               <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -535,7 +537,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
             <button
               type="button"
               onClick={handleForkFund}
-              className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2.5 px-4 rounded-xl border border-indigo-200 transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer text-xs"
+              className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-4 rounded-2xl border border-indigo-200/80 transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer text-xs"
             >
               <span>🍴 この構成をアレンジして作成（コピー）</span>
             </button>
@@ -559,7 +561,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
           </div>
         </article>
 
-        <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4">
+        <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
           <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
             <span>💬 コメント</span>
             <span className="text-xs text-slate-400 font-normal">({comments.length}件)</span>
@@ -609,15 +611,14 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
         )}
       </main>
 
-      {/* スクロールしても常に画面右下に追従する「自分で作る」ボタン（X/Twitter投稿ボタン風） */}
       <button
         type="button"
         onClick={() => router.push('/create')}
-        className="fixed bottom-6 right-5 z-40 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold px-4 py-3.5 rounded-full shadow-xl transition-all duration-200 flex items-center gap-2 text-xs cursor-pointer border border-white/20"
-        title="新しいファンドを作成"
+        className="fixed bottom-6 right-5 z-40 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black px-5 py-4 rounded-full shadow-2xl transition-all duration-200 flex items-center gap-2.5 text-sm cursor-pointer border-2 border-white/30 hover:shadow-indigo-500/30"
+        title="新しいファンドを作成する"
       >
-        <span className="text-base leading-none">＋</span>
-        <span>ファンドを作成</span>
+        <span className="text-lg leading-none">＋</span>
+        <span>ファンドを作成する</span>
       </button>
     </div>
   );
