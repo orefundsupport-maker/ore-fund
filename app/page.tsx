@@ -103,6 +103,21 @@ function FundCard({
     ? Math.floor(Number(fund.total_amount))
     : formattedItems.reduce((s, i) => s + i.amount, 0);
 
+  const weightTotal = totalAmt > 0
+    ? totalAmt
+    : formattedItems.reduce((s, i) => s + (i.ratio || 1), 0) || 1;
+
+  const displayItems = formattedItems.map((item) => {
+    const itemRatio = totalAmt > 0
+      ? Math.floor((item.amount / totalAmt) * 100)
+      : item.ratio || Math.floor(100 / (formattedItems.length || 1));
+    return {
+      ...item,
+      displayRatio: itemRatio,
+      weight: totalAmt > 0 ? item.amount : (item.ratio || 1),
+    };
+  });
+
   let currentAngle = 0;
 
   return (
@@ -133,12 +148,9 @@ function FundCard({
       {chartType === 'bar' ? (
         <div className="space-y-3 pt-1" onClick={(e) => e.stopPropagation()}>
           <div className="h-9 w-full bg-slate-100 rounded-full overflow-hidden flex gap-1 p-1 shadow-inner items-center">
-            {formattedItems.map((item, idx) => {
-              const pct = totalAmt > 0
-                ? Math.floor((item.amount / totalAmt) * 100)
-                : item.ratio || Math.floor(100 / (formattedItems.length || 1));
-
-              if (pct <= 0) return null;
+            {displayItems.map((item, idx) => {
+              const widthPercent = (item.weight / weightTotal) * 100;
+              if (widthPercent <= 0) return null;
               const isHovered = hoveredIdx === idx;
 
               return (
@@ -147,7 +159,7 @@ function FundCard({
                   onMouseEnter={() => setHoveredIdx(idx)}
                   onMouseLeave={() => setHoveredIdx(null)}
                   style={{
-                    flexGrow: Math.max(pct, 2),
+                    flexGrow: item.weight,
                     backgroundColor: item.color,
                     minWidth: '18px',
                     transform: isHovered ? 'scaleY(1.22)' : 'scaleY(1)',
@@ -156,11 +168,11 @@ function FundCard({
                     zIndex: isHovered ? 10 : 1,
                   }}
                   className="h-full first:rounded-l-full last:rounded-r-full shrink-0 flex items-center justify-center overflow-hidden transition-all duration-200 cursor-pointer"
-                  title={`${item.name}: ${pct}%`}
+                  title={`${item.name}: ${item.displayRatio}%`}
                 >
-                  {pct >= 8 && (
+                  {item.displayRatio >= 8 && (
                     <span className="text-[10px] font-black text-white drop-shadow-2xs select-none px-0.5 truncate">
-                      {pct}%
+                      {item.displayRatio}%
                     </span>
                   )}
                 </div>
@@ -169,19 +181,17 @@ function FundCard({
           </div>
 
           <div className="h-7 flex items-center justify-center">
-            {hoveredIdx !== null && formattedItems[hoveredIdx] ? (
+            {hoveredIdx !== null && displayItems[hoveredIdx] ? (
               <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-200 text-xs shadow-2xs animate-in fade-in zoom-in-95 duration-150">
                 <span
                   className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: formattedItems[hoveredIdx].color }}
+                  style={{ backgroundColor: displayItems[hoveredIdx].color }}
                 />
                 <span className="font-bold text-slate-800">
-                  {formattedItems[hoveredIdx].name}
+                  {displayItems[hoveredIdx].name}
                 </span>
                 <span className="font-black text-indigo-600">
-                  {totalAmt > 0
-                    ? Math.floor((formattedItems[hoveredIdx].amount / totalAmt) * 100)
-                    : formattedItems[hoveredIdx].ratio}%
+                  {displayItems[hoveredIdx].displayRatio}%
                 </span>
               </div>
             ) : (
@@ -190,11 +200,7 @@ function FundCard({
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-            {formattedItems.map((item, idx) => {
-              const pct = totalAmt > 0
-                ? Math.floor((item.amount / totalAmt) * 100)
-                : item.ratio || Math.floor(100 / (formattedItems.length || 1));
-
+            {displayItems.map((item, idx) => {
               const isHovered = hoveredIdx === idx;
 
               return (
@@ -229,7 +235,7 @@ function FundCard({
                     </div>
                   </div>
                   <span className="font-black text-xs text-slate-900 shrink-0 pl-1">
-                    {pct}%
+                    {item.displayRatio}%
                   </span>
                 </div>
               );
@@ -241,14 +247,10 @@ function FundCard({
           <div className="flex flex-col items-center justify-center pt-2 pb-2 px-2 bg-slate-50/70 rounded-2xl border border-slate-100">
             <div className="relative w-60 h-60 flex items-center justify-center">
               <svg viewBox="0 0 200 200" className="w-full h-full">
-                {formattedItems.map((item, idx) => {
-                  const pct = totalAmt > 0
-                    ? Math.floor((item.amount / totalAmt) * 100)
-                    : item.ratio || Math.floor(100 / (formattedItems.length || 1));
+                {displayItems.map((item, idx) => {
+                  if (item.weight <= 0) return null;
 
-                  if (pct <= 0) return null;
-
-                  const sliceAngle = (pct / 100) * 360;
+                  const sliceAngle = (item.weight / weightTotal) * 360;
                   const safeAngle = sliceAngle >= 360 ? 359.99 : sliceAngle;
                   const startAngle = currentAngle;
                   const endAngle = currentAngle + safeAngle;
@@ -284,19 +286,17 @@ function FundCard({
             </div>
 
             <div className="h-7 mt-1 flex items-center justify-center">
-              {hoveredIdx !== null && formattedItems[hoveredIdx] ? (
+              {hoveredIdx !== null && displayItems[hoveredIdx] ? (
                 <div className="flex items-center gap-1.5 bg-white px-3.5 py-1 rounded-full border border-slate-200 text-xs shadow-2xs animate-in fade-in zoom-in-95 duration-150">
                   <span
                     className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: formattedItems[hoveredIdx].color }}
+                    style={{ backgroundColor: displayItems[hoveredIdx].color }}
                   />
                   <span className="font-bold text-slate-800">
-                    {formattedItems[hoveredIdx].name}
+                    {displayItems[hoveredIdx].name}
                   </span>
                   <span className="font-black text-indigo-600">
-                    {totalAmt > 0
-                      ? Math.floor((formattedItems[hoveredIdx].amount / totalAmt) * 100)
-                      : formattedItems[hoveredIdx].ratio}%
+                    {displayItems[hoveredIdx].displayRatio}%
                   </span>
                 </div>
               ) : (
@@ -306,11 +306,7 @@ function FundCard({
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-            {formattedItems.map((item, idx) => {
-              const pct = totalAmt > 0
-                ? Math.floor((item.amount / totalAmt) * 100)
-                : item.ratio || Math.floor(100 / (formattedItems.length || 1));
-
+            {displayItems.map((item, idx) => {
               const isHovered = hoveredIdx === idx;
 
               return (
@@ -345,7 +341,7 @@ function FundCard({
                     </div>
                   </div>
                   <span className="font-black text-xs text-slate-900 shrink-0 pl-1">
-                    {pct}%
+                    {item.displayRatio}%
                   </span>
                 </div>
               );
