@@ -6,10 +6,10 @@ import { supabase } from '@/app/lib/supabase';
 
 type FundItem = {
   name: string;
-  price?: number;
-  shares?: number;
-  amount?: number;
-  ratio?: number;
+  price?: number | string;
+  shares?: number | string;
+  amount?: number | string;
+  ratio?: number | string;
   color?: string;
 };
 
@@ -19,7 +19,7 @@ type Fund = {
   author: string;
   funny_count: number;
   description: string;
-  total_amount?: number;
+  total_amount?: number | string;
   items: FundItem[];
   created_at?: string;
 };
@@ -70,14 +70,29 @@ function FundCard({
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-  const rawItems = fund.items || [];
+  let rawItems: any[] = [];
+  if (Array.isArray(fund.items)) {
+    rawItems = fund.items;
+  } else if (typeof fund.items === 'string') {
+    try {
+      rawItems = JSON.parse(fund.items);
+    } catch {
+      rawItems = [];
+    }
+  }
+
   const formattedItems = rawItems.map((item, idx) => {
     const name = (item.name || `銘柄${idx + 1}`).trim();
-    const p = Number(item.price) || 0;
-    const s = Number(item.shares) || 0;
-    const amount = item.amount ? Number(item.amount) : Math.floor(p * s);
+    const price = item.price !== undefined && item.price !== null && item.price !== '' ? Number(item.price) : undefined;
+    const shares = item.shares !== undefined && item.shares !== null && item.shares !== '' ? Number(item.shares) : undefined;
+    let amount = item.amount !== undefined && item.amount !== null && item.amount !== '' ? Math.floor(Number(item.amount)) : 0;
+    if (!amount && price !== undefined && shares !== undefined) {
+      amount = Math.floor(price * shares);
+    }
     return {
       name,
+      price,
+      shares,
       amount,
       ratio: item.ratio ? Number(item.ratio) : 0,
       color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
@@ -85,7 +100,7 @@ function FundCard({
   });
 
   const totalAmt = fund.total_amount
-    ? Number(fund.total_amount)
+    ? Math.floor(Number(fund.total_amount))
     : formattedItems.reduce((s, i) => s + i.amount, 0);
 
   let currentAngle = 0;
@@ -116,7 +131,7 @@ function FundCard({
       )}
 
       {chartType === 'bar' ? (
-        <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
+        <div className="space-y-3 pt-1" onClick={(e) => e.stopPropagation()}>
           <div className="h-9 w-full bg-slate-100 rounded-full overflow-hidden flex gap-1 p-1 shadow-inner items-center">
             {formattedItems.map((item, idx) => {
               const pct = totalAmt > 0
@@ -174,7 +189,7 @@ function FundCard({
             )}
           </div>
 
-          <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 items-center pt-0.5">
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
             {formattedItems.map((item, idx) => {
               const pct = totalAmt > 0
                 ? Math.floor((item.amount / totalAmt) * 100)
@@ -187,16 +202,35 @@ function FundCard({
                   key={idx}
                   onMouseEnter={() => setHoveredIdx(idx)}
                   onMouseLeave={() => setHoveredIdx(null)}
-                  className={`flex items-center gap-1.5 text-xs transition-colors rounded-md px-1.5 py-0.5 cursor-pointer ${
-                    isHovered ? 'bg-indigo-50 font-bold text-indigo-900' : 'text-slate-700'
+                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    isHovered
+                      ? 'bg-indigo-50/80 border-indigo-200 shadow-2xs'
+                      : 'bg-slate-50/60 border-slate-100 hover:bg-slate-100/70'
                   }`}
                 >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="truncate max-w-[130px]">{item.name}</span>
-                  <span className="font-black text-slate-900 text-[11px]">{pct}%</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-800 truncate">
+                        {item.name}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-medium truncate">
+                        {item.price !== undefined && item.shares !== undefined ? (
+                          `¥${item.price.toLocaleString()} × ${item.shares}株`
+                        ) : item.amount ? (
+                          `¥${item.amount.toLocaleString()}`
+                        ) : (
+                          '比率指定'
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="font-black text-xs text-slate-900 shrink-0 pl-1">
+                    {pct}%
+                  </span>
                 </div>
               );
             })}
@@ -271,7 +305,7 @@ function FundCard({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 items-center pt-0.5">
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
             {formattedItems.map((item, idx) => {
               const pct = totalAmt > 0
                 ? Math.floor((item.amount / totalAmt) * 100)
@@ -284,16 +318,35 @@ function FundCard({
                   key={idx}
                   onMouseEnter={() => setHoveredIdx(idx)}
                   onMouseLeave={() => setHoveredIdx(null)}
-                  className={`flex items-center gap-1.5 text-xs transition-colors rounded-md px-1.5 py-0.5 cursor-pointer ${
-                    isHovered ? 'bg-indigo-50 font-bold text-indigo-900' : 'text-slate-700'
+                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    isHovered
+                      ? 'bg-indigo-50/80 border-indigo-200 shadow-2xs'
+                      : 'bg-slate-50/60 border-slate-100 hover:bg-slate-100/70'
                   }`}
                 >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="truncate max-w-[130px]">{item.name}</span>
-                  <span className="font-black text-slate-900 text-[11px]">{pct}%</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-800 truncate">
+                        {item.name}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-medium truncate">
+                        {item.price !== undefined && item.shares !== undefined ? (
+                          `¥${item.price.toLocaleString()} × ${item.shares}株`
+                        ) : item.amount ? (
+                          `¥${item.amount.toLocaleString()}`
+                        ) : (
+                          '比率指定'
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="font-black text-xs text-slate-900 shrink-0 pl-1">
+                    {pct}%
+                  </span>
                 </div>
               );
             })}
@@ -335,7 +388,17 @@ export default function HomePage() {
   const filteredFunds = funds.filter((fund) => {
     if (selectedBudget === 'all') return true;
 
-    const rawItems = fund.items || [];
+    let rawItems: any[] = [];
+    if (Array.isArray(fund.items)) {
+      rawItems = fund.items;
+    } else if (typeof fund.items === 'string') {
+      try {
+        rawItems = JSON.parse(fund.items);
+      } catch {
+        rawItems = [];
+      }
+    }
+
     const calculatedTotal = rawItems.reduce((sum, item) => {
       const p = Number(item.price) || 0;
       const s = Number(item.shares) || 0;
