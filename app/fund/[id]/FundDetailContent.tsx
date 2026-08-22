@@ -542,7 +542,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               <span>🍴 この構成をアレンジして作成（コピー）</span>
             </button>
           </div>
-
           <div className="pt-2 flex justify-start items-center border-t border-slate-100">
             <button
               onClick={handleFunnyClick}
@@ -554,13 +553,10 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               }`}
             >
               <span>{hasReacted ? '💡 納得済' : '💡 納得'}</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs ${hasReacted ? 'bg-slate-200 text-slate-600' : 'bg-amber-200/60 text-amber-900'}`}>
-                {fund.funny_count || 0}
-              </span>
+              {/* ここにあったカウント用のspanを削除しました */}
             </button>
           </div>
         </article>
-
         <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
           <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
             <span>💬 コメント</span>
