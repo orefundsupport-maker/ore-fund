@@ -62,10 +62,14 @@ function getDonutSlicePath(
 function FundCard({
   fund,
   chartType,
+  hasReacted,
+  onFunnyClick,
   onClick,
 }: {
   fund: Fund;
   chartType: 'bar' | 'pie';
+  hasReacted: boolean;
+  onFunnyClick: (fundId: string, currentCount: number) => void;
   onClick: () => void;
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -349,6 +353,22 @@ function FundCard({
           </div>
         </div>
       )}
+
+      {/* 納得ボタン（カウント非表示 & 画面遷移防止） */}
+      <div className="pt-2 flex justify-start items-center border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => onFunnyClick(fund.id, fund.funny_count || 0)}
+          disabled={hasReacted}
+          className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-full transition cursor-pointer ${
+            hasReacted
+              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              : 'text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95'
+          }`}
+        >
+          <span>{hasReacted ? '💡 納得済' : '💡 納得'}</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -359,8 +379,18 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [selectedBudget, setSelectedBudget] = useState<string>('all');
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
+  const [reactedFunds, setReactedFunds] = useState<string[]>([]);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem('reacted_funds');
+      if (saved) {
+        setReactedFunds(JSON.parse(saved));
+      }
+    } catch {
+      // ignore
+    }
+
     async function fetchFunds() {
       setLoading(true);
       const { data, error } = await supabase
@@ -375,6 +405,32 @@ export default function HomePage() {
     }
     fetchFunds();
   }, []);
+
+  const handleFunnyClick = async (fundId: string, currentCount: number) => {
+    if (reactedFunds.includes(fundId)) return;
+
+    const nextReacted = [...reactedFunds, fundId];
+    setReactedFunds(nextReacted);
+    try {
+      localStorage.setItem('reacted_funds', JSON.stringify(nextReacted));
+    } catch {
+      // ignore
+    }
+
+    const newCount = currentCount + 1;
+    setFunds((prev) =>
+      prev.map((f) => (f.id === fundId ? { ...f, funny_count: newCount } : f))
+    );
+
+    const { error } = await supabase
+      .from('funds')
+      .update({ funny_count: newCount })
+      .eq('id', fundId);
+
+    if (error) {
+      console.error('更新エラー:', error);
+    }
+  };
 
   const handleResetToHome = () => {
     setSelectedBudget('all');
@@ -520,6 +576,8 @@ export default function HomePage() {
                 key={fund.id}
                 fund={fund}
                 chartType={chartType}
+                hasReacted={reactedFunds.includes(fund.id)}
+                onFunnyClick={handleFunnyClick}
                 onClick={() => router.push(`/fund/${fund.id}`)}
               />
             ))}
