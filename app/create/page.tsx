@@ -12,7 +12,21 @@ type FundItem = {
   color: string;
 };
 
-const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
+// 視認性が高く、隣り合っても被りにくい12色のカラーパレット
+const DEFAULT_COLORS = [
+  '#2563EB', // ブルー
+  '#EA580C', // オレンジ
+  '#16A34A', // グリーン
+  '#9333EA', // パープル
+  '#DC2626', // レッド
+  '#CA8A04', // イエローゴールド
+  '#DB2777', // ピンク
+  '#0D9488', // ティール
+  '#4F46E5', // インディゴ
+  '#65A30D', // ライム
+  '#C026D3', // マゼンタ
+  '#B45309', // アンバー
+];
 
 const RANDOM_AUTHORS = [
   '名無し投資家@含み損',
@@ -173,7 +187,6 @@ function CreateFundContent() {
     const newItems = [...items];
     let processedValue = value;
 
-    // 4桁の銘柄コード入力時に「社名 (コード)」の形式で自動補完
     if (field === 'name') {
       const codeTrimmed = value.trim();
       const matched = getCompanyNameByCode(codeTrimmed);
@@ -270,17 +283,18 @@ function CreateFundContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-16 relative">
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shadow-sm flex items-center justify-between">
+      <header className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3 shadow-xs flex items-center justify-between">
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="text-sm font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+          className="flex items-center gap-2 hover:opacity-80 transition cursor-pointer text-left"
         >
-          ← 戻る
+          <span className="text-xl">📊</span>
+          <h1 className="text-base font-black text-slate-900 tracking-tight">俺ファンド</h1>
         </button>
-        <h1 className="text-base font-bold text-slate-800">
-          {forkId ? 'ファンドをアレンジ作成' : 'ファンド作成'}
-        </h1>
+        <span className="text-xs font-bold text-slate-500">
+          {forkId ? 'アレンジ作成' : '新規作成'}
+        </span>
         <div className="w-10" />
       </header>
 
