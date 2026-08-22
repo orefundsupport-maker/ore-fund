@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 
 type FundItem = {
@@ -64,12 +64,14 @@ function FundCard({
   chartType,
   hasReacted,
   onFunnyClick,
+  onAuthorClick,
   onClick,
 }: {
   fund: Fund;
   chartType: 'bar' | 'pie';
   hasReacted: boolean;
   onFunnyClick: (fundId: string, currentCount: number) => void;
+  onAuthorClick: (author: string) => void;
   onClick: () => void;
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -134,7 +136,17 @@ function FundCard({
           <h4 className="font-extrabold text-slate-900 text-base leading-snug truncate">
             {fund.title}
           </h4>
-          <p className="text-xs text-slate-400 font-medium">@{fund.author}</p>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAuthorClick(fund.author);
+            }}
+            className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-bold transition cursor-pointer"
+            title={`${fund.author}さんのファンドを絞り込み`}
+          >
+            @{fund.author}
+          </button>
         </div>
         {totalAmt > 0 && (
           <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl shrink-0 border border-indigo-100 shadow-2xs">
@@ -354,7 +366,6 @@ function FundCard({
         </div>
       )}
 
-      {/* 納得ボタン（カウント非表示 & 画面遷移防止） */}
       <div className="pt-2 flex justify-start items-center border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
@@ -373,13 +384,23 @@ function FundCard({
   );
 }
 
-export default function HomePage() {
+function HomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialAuthor = searchParams.get('author') || '';
+
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBudget, setSelectedBudget] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initialAuthor) {
+      setSearchQuery(initialAuthor);
+    }
+  }, [initialAuthor]);
 
   useEffect(() => {
     try {
@@ -434,12 +455,16 @@ export default function HomePage() {
 
   const handleResetToHome = () => {
     setSelectedBudget('all');
+    setSearchQuery('');
     router.push('/');
   };
 
-  const filteredFunds = funds.filter((fund) => {
-    if (selectedBudget === 'all') return true;
+  const handleAuthorClick = (authorName: string) => {
+    setSearchQuery(authorName);
+  };
 
+  // 予算 ＆ キーワード横断（ファンド名・作者・説明・銘柄名）フィルター
+  const filteredFunds = funds.filter((fund) => {
     let rawItems: any[] = [];
     if (Array.isArray(fund.items)) {
       rawItems = fund.items;
@@ -450,6 +475,22 @@ export default function HomePage() {
         rawItems = [];
       }
     }
+
+    // 1. キーワード検索（ファンド名、投稿者名、説明文、銘柄名）
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      const matchTitle = (fund.title || '').toLowerCase().includes(q);
+      const matchAuthor = (fund.author || '').toLowerCase().includes(q);
+      const matchDesc = (fund.description || '').toLowerCase().includes(q);
+      const matchItems = rawItems.some((item) => (item.name || '').toLowerCase().includes(q));
+
+      if (!matchTitle && !matchAuthor && !matchDesc && !matchItems) {
+        return false;
+      }
+    }
+
+    // 2. 予算フィルター
+    if (selectedBudget === 'all') return true;
 
     const calculatedTotal = rawItems.reduce((sum, item) => {
       const p = Number(item.price) || 0;
@@ -504,6 +545,32 @@ export default function HomePage() {
           </p>
         </div>
 
+        {/* 🔍 キーワード ＆ 名前検索バー */}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ファンド名、作成者名、銘柄名でリアルタイム検索..."
+            className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs placeholder:text-slate-400"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-bold"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* 予算フィルター & グラフ切替タブ */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-500 font-bold px-1">
             <span>💰 予算で絞り込み</span>
@@ -554,17 +621,26 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* ファンド一覧 */}
         {loading ? (
           <div className="text-center py-16 text-slate-400 text-sm">ファンドを読み込み中...</div>
         ) : filteredFunds.length === 0 ? (
           <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center space-y-3 shadow-xs">
             <div className="text-3xl">🔍</div>
-            <p className="text-sm font-bold text-slate-700">条件に合うファンドが見つかりませんでした</p>
-            <p className="text-xs text-slate-400">自分で新しいファンドを作成してみませんか？</p>
+            <p className="text-sm font-bold text-slate-700">条件に一致するファンドが見つかりませんでした</p>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-xs text-indigo-600 font-bold hover:underline block mx-auto cursor-pointer"
+              >
+                検索ワードをクリアする
+              </button>
+            )}
             <button
               type="button"
               onClick={() => router.push('/create')}
-              className="text-xs bg-indigo-600 text-white font-bold px-4 py-2.5 rounded-full hover:bg-indigo-700 transition cursor-pointer"
+              className="text-xs bg-indigo-600 text-white font-bold px-4 py-2.5 rounded-full hover:bg-indigo-700 transition cursor-pointer mt-2"
             >
               ファンドを作成する 🚀
             </button>
@@ -578,6 +654,7 @@ export default function HomePage() {
                 chartType={chartType}
                 hasReacted={reactedFunds.includes(fund.id)}
                 onFunnyClick={handleFunnyClick}
+                onAuthorClick={handleAuthorClick}
                 onClick={() => router.push(`/fund/${fund.id}`)}
               />
             ))}
@@ -595,5 +672,13 @@ export default function HomePage() {
         <span>ファンドを作成する</span>
       </button>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 text-sm">読み込み中...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }

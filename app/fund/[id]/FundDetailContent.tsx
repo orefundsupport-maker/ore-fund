@@ -258,7 +258,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   const displayItems = formattedItems.map((item) => {
     const itemRatio = totalAmount > 0
       ? Math.floor((item.amount / totalAmount) * 100)
-      : item.ratio;
+      : item.ratio || Math.floor(100 / (formattedItems.length || 1));
     return {
       ...item,
       displayRatio: itemRatio,
@@ -314,7 +314,15 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
         <article className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
           <div className="flex justify-between items-center text-xs text-slate-500">
             <div>
-              投稿者: <span className="font-bold text-slate-700">@{fund.author}</span>
+              投稿者:{' '}
+              <button
+                type="button"
+                onClick={() => router.push(`/?author=${encodeURIComponent(fund.author)}`)}
+                className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline transition cursor-pointer"
+                title={`${fund.author}さんのファンド一覧を見る`}
+              >
+                @{fund.author}
+              </button>
               {formattedCreatedDate && ` ・ ${formattedCreatedDate}`}
             </div>
             {totalAmount > 0 && (
@@ -542,6 +550,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               <span>🍴 この構成をアレンジして作成（コピー）</span>
             </button>
           </div>
+
           <div className="pt-2 flex justify-start items-center border-t border-slate-100">
             <button
               onClick={handleFunnyClick}
@@ -553,10 +562,10 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               }`}
             >
               <span>{hasReacted ? '💡 納得済' : '💡 納得'}</span>
-              {/* ここにあったカウント用のspanを削除しました */}
             </button>
           </div>
         </article>
+
         <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
           <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
             <span>💬 コメント</span>
