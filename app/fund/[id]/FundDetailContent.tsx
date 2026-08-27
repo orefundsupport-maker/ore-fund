@@ -31,7 +31,21 @@ type Comment = {
   text: string;
 };
 
-const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
+// 視認性が高く、隣り合っても被りにくい12色のカラーパレット
+const DEFAULT_COLORS = [
+  '#2563EB', // ブルー
+  '#EA580C', // オレンジ
+  '#16A34A', // グリーン
+  '#9333EA', // パープル
+  '#DC2626', // レッド
+  '#CA8A04', // イエローゴールド
+  '#DB2777', // ピンク
+  '#0D9488', // ティール
+  '#4F46E5', // インディゴ
+  '#65A30D', // ライム
+  '#C026D3', // マゼンタ
+  '#B45309', // アンバー
+];
 
 const OHTANI_FUND_EXAMPLE: Fund = {
   id: '1',
@@ -42,10 +56,10 @@ const OHTANI_FUND_EXAMPLE: Fund = {
   description:
     '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
   items: [
-    { name: 'コーセー (4922)', ratio: 30, color: '#3B82F6' },
-    { name: '伊藤園 (2593)', ratio: 30, color: '#10B981' },
-    { name: 'セイコーグループ (8050)', ratio: 20, color: '#F59E0B' },
-    { name: '西川', ratio: 20, color: '#EC4899' },
+    { name: 'コーセー (4922)', ratio: 30, color: '#2563EB' },
+    { name: '伊藤園 (2593)', ratio: 30, color: '#16A34A' },
+    { name: 'セイコーグループ (8050)', ratio: 20, color: '#EA580C' },
+    { name: '西川', ratio: 20, color: '#DB2777' },
   ],
 };
 
@@ -227,9 +241,18 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
     );
   }
 
-  const itemsList = fund.items || [];
+  let rawItems: any[] = [];
+  if (Array.isArray(fund.items)) {
+    rawItems = fund.items;
+  } else if (typeof fund.items === 'string') {
+    try {
+      rawItems = JSON.parse(fund.items);
+    } catch {
+      rawItems = [];
+    }
+  }
 
-  const formattedItems = itemsList.map((item, idx) => {
+  const formattedItems = rawItems.map((item, idx) => {
     const name = (item.name || `銘柄${idx + 1}`).trim();
     const price = item.price ? Number(item.price) : undefined;
     const shares = item.shares ? Number(item.shares) : undefined;
@@ -270,14 +293,15 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   const formattedCreatedDate = formatDate(fund.created_at);
   const hasReacted = reactedFunds.includes(fund.id);
 
+  // X（Twitter）共有処理：比率リストを省き、こだわり文と問いかけでスマート化
   const handleShareToX = () => {
-    const topItemsText = displayItems
-      .slice(0, 4)
-      .map((item) => `・${item.name} ${item.displayRatio}%`)
-      .join('\n');
-    const remainingText = displayItems.length > 4 ? `\n・他${displayItems.length - 4}銘柄` : '';
+    if (!fund) return;
 
-    const text = `📊「${fund.title}」を考えました！\n作成者: @${fund.author}\n\n${topItemsText}${remainingText}\n\nこの構成で勝てると思う？あなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
+    const descText = fund.description?.trim()
+      ? `💬こだわり:\n${fund.description.length > 70 ? fund.description.slice(0, 67) + '...' : fund.description}\n\n`
+      : '';
+
+    const text = `📊「${fund.title}」を考えました！\n作成者: @${fund.author}\n\n${descText}この構成で勝てると思う？あなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
     const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://ore-fund.vercel.app/fund/${fund.id}`;
 
     const twitterIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
