@@ -1,10 +1,15 @@
 import { ImageResponse } from 'next/og';
 import { supabase } from '@/app/lib/supabase';
 
+// Edge Runtimeで超高速起動
 export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
 
-const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316'];
+// 視認性の高い12色のカラーパレット
+const DEFAULT_COLORS = [
+  '#2563EB', '#EA580C', '#16A34A', '#9333EA',
+  '#DC2626', '#CA8A04', '#DB2777', '#0D9488',
+  '#4F46E5', '#65A30D', '#C026D3', '#B45309',
+];
 
 const OHTANI_SAMPLE_FUND = {
   id: '1',
@@ -12,10 +17,10 @@ const OHTANI_SAMPLE_FUND = {
   author: '大谷ファン',
   description: '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！',
   items: [
-    { name: 'コーセー', ratio: 30, color: '#3B82F6' },
-    { name: '伊藤園', ratio: 30, color: '#10B981' },
-    { name: 'セイコーグループ', ratio: 20, color: '#F59E0B' },
-    { name: '西川', ratio: 20, color: '#EC4899' },
+    { name: 'コーセー', ratio: 30, color: '#2563EB' },
+    { name: '伊藤園', ratio: 30, color: '#16A34A' },
+    { name: 'セイコーグループ', ratio: 20, color: '#EA580C' },
+    { name: '西川', ratio: 20, color: '#DB2777' },
   ],
 };
 
@@ -253,7 +258,7 @@ export async function GET(request: Request): Promise<Response> {
         width: 1200,
         height: 630,
         headers: {
-          'Cache-Control': 'public, max-age=31536000, immutable',
+          'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
         },
       }
     );
