@@ -99,7 +99,7 @@ function CreateFundContent() {
   ]);
 
   const [showShareModal, setShowShareModal] = useState(false);
-  const [createdFund, setCreatedFund] = useState<{ id: string; title: string; author: string } | null>(null);
+  const [createdFund, setCreatedFund] = useState<{ id: string; title: string; author: string; description?: string } | null>(null);
 
   const refreshRandomSeed = () => {
     const base = RANDOM_AUTHORS[Math.floor(Math.random() * RANDOM_AUTHORS.length)];
@@ -260,7 +260,12 @@ function CreateFundContent() {
       return;
     }
 
-    setCreatedFund({ id: data.id, title: data.title, author: data.author });
+    setCreatedFund({
+      id: data.id,
+      title: data.title,
+      author: data.author,
+      description: data.description,
+    });
     setShowShareModal(true);
     setIsSubmitting(false);
   };
@@ -268,7 +273,13 @@ function CreateFundContent() {
   const handleConfirmShare = () => {
     if (!createdFund) return;
     const randomHook = SHARE_HOOKS[Math.floor(Math.random() * SHARE_HOOKS.length)];
-    const text = `📊 「${createdFund.title}」を考えました！\n作成者: @${createdFund.author}\n\n${randomHook}\n\n#俺ファンド #株式投資 #ポートフォリオ`;
+    
+    // こだわり・説明文（長すぎる場合は適度に省略）
+    const descText = createdFund.description?.trim()
+      ? `💬こだわり:\n${createdFund.description.length > 70 ? createdFund.description.slice(0, 67) + '...' : createdFund.description}\n\n`
+      : '';
+
+    const text = `📊「${createdFund.title}」を考えました！\n作成者: @${createdFund.author}\n\n${descText}${randomHook}\n#俺ファンド #株式投資 #ポートフォリオ`;
     const fundUrl = `${window.location.origin}/fund/${createdFund.id}`;
     const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(fundUrl)}`;
     
@@ -598,7 +609,7 @@ function CreateFundContent() {
                         <span className="font-bold text-slate-800">
                           {calculatedItems[hoveredIndex].name}
                         </span>
-                        <span className="font-bold text-indigo-600">
+                        <span className="font-black text-indigo-600">
                           {Math.floor((calculatedItems[hoveredIndex].amount / totalAmount) * 100)}%
                         </span>
                       </div>
