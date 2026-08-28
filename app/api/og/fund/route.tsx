@@ -10,27 +10,30 @@ const DEFAULT_COLORS = [
   '#4F46E5', '#65A30D', '#C026D3', '#B45309',
 ];
 
-// ビルド時にpyftsubset等でJIS第1水準+かな+英数字程度にサブセット化した
-// フォントを app/api/og/fund/fonts/ に配置しておく（フルセットは使わない）。
 async function loadJapaneseFont(): Promise<ArrayBuffer> {
-  const fontUrl = new URL('./fonts/NotoSansJP-Bold-subset.otf', import.meta.url);
+  const fontUrl = new URL('./fonts/NotoSansJP-Bold.ttf', import.meta.url);
   const res = await fetch(fontUrl);
   return res.arrayBuffer();
 }
 
-// モジュールスコープでPromiseをキャッシュ。ウォームインスタンス内では
-// 2回目以降のリクエストでfetchが再発生しない。
 const fontDataPromise = loadJapaneseFont();
 
 function fallbackImage(): ImageResponse {
   return new ImageResponse(
     (
-      <div style={{
-        height: '100%', width: '100%', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        backgroundColor: '#090d16', color: '#38bdf8',
-        fontSize: 48, fontWeight: 900,
-      }}>
+      <div
+        style={{
+          height: '100%',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#090d16',
+          color: '#38bdf8',
+          fontSize: 48,
+          fontWeight: 900,
+        }}
+      >
         俺ファンド
       </div>
     ),
@@ -57,7 +60,11 @@ export async function GET(request: Request): Promise<Response> {
     if (Array.isArray(fund?.items)) {
       rawItems = fund.items;
     } else if (typeof fund?.items === 'string') {
-      try { rawItems = JSON.parse(fund.items); } catch { rawItems = []; }
+      try {
+        rawItems = JSON.parse(fund.items);
+      } catch {
+        rawItems = [];
+      }
     }
 
     const items = rawItems.map((item, idx) => ({
@@ -68,14 +75,38 @@ export async function GET(request: Request): Promise<Response> {
 
     return new ImageResponse(
       (
-        <div style={{
-          height: '100%', width: '100%', display: 'flex',
-          flexDirection: 'column', justifyContent: 'space-between',
-          backgroundColor: '#090d16', padding: '50px 60px',
-          fontFamily: 'Noto Sans JP',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <div style={{ display: 'flex', backgroundColor: '#38bdf8', color: '#090d16', padding: '6px 20px', borderRadius: '9999px', fontSize: 22, fontWeight: 900 }}>
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            backgroundColor: '#090d16',
+            padding: '50px 60px',
+            fontFamily: 'Noto Sans JP',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: '100%',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#38bdf8',
+                color: '#090d16',
+                padding: '6px 20px',
+                borderRadius: '9999px',
+                fontSize: 22,
+                fontWeight: 900,
+              }}
+            >
               俺ファンド
             </div>
             <div style={{ display: 'flex', fontSize: 22, color: '#94a3b8', fontWeight: 700 }}>
@@ -83,37 +114,109 @@ export async function GET(request: Request): Promise<Response> {
             </div>
           </div>
 
-          <div style={{ display: 'flex', fontSize: 44, fontWeight: 900, color: '#f8fafc', maxWidth: '1080px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              fontSize: 44,
+              fontWeight: 900,
+              color: '#f8fafc',
+              maxWidth: '1080px',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {title}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#131b2e', padding: '24px 28px', borderRadius: '24px', border: '1px solid #1e293b' }}>
-            <div style={{ display: 'flex', width: '100%', height: '42px', backgroundColor: '#1e293b', borderRadius: '9999px', overflow: 'hidden', padding: '3px', gap: '2px' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              backgroundColor: '#131b2e',
+              padding: '24px 28px',
+              borderRadius: '24px',
+              border: '1px solid #1e293b',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                height: '42px',
+                backgroundColor: '#1e293b',
+                borderRadius: '9999px',
+                overflow: 'hidden',
+                padding: '3px',
+                gap: '2px',
+              }}
+            >
               {items.map((item, idx) => (
-                <div key={idx} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexGrow: item.percent,
-                  minWidth: '24px', height: '100%',
-                  backgroundColor: item.color, color: '#ffffff', fontSize: 15, fontWeight: 900,
-                }}>
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexGrow: item.percent,
+                    minWidth: '24px',
+                    height: '100%',
+                    backgroundColor: item.color,
+                    color: '#ffffff',
+                    fontSize: 15,
+                    fontWeight: 900,
+                  }}
+                >
                   {item.percent >= 8 ? `${item.percent}%` : ''}
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 20px', alignItems: 'center' }}>
+
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '12px 20px',
+                alignItems: 'center',
+              }}
+            >
               {items.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: item.color }} />
-                  <span style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>{item.name}</span>
-                  <span style={{ fontSize: 20, fontWeight: 900, color: item.color }}>{item.percent}%</span>
+                  <div
+                    style={{
+                      width: '14px',
+                      height: '14px',
+                      borderRadius: '50%',
+                      backgroundColor: item.color,
+                    }}
+                  />
+                  <span style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>
+                    {item.name}
+                  </span>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: item.color }}>
+                    {item.percent}%
+                  </span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', borderTop: '1px solid #334155', paddingTop: '16px' }}>
-            <div style={{ display: 'flex', fontSize: 18, color: '#64748b' }}>仮想ポートフォリオ共有プラットフォーム</div>
-            <div style={{ display: 'flex', fontSize: 18, color: '#38bdf8', fontWeight: 700 }}>ore-fund.vercel.app</div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: '100%',
+              borderTop: '1px solid #334155',
+              paddingTop: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', fontSize: 18, color: '#64748b' }}>
+              仮想ポートフォリオ共有プラットフォーム
+            </div>
+            <div style={{ display: 'flex', fontSize: 18, color: '#38bdf8', fontWeight: 700 }}>
+              ore-fund.vercel.app
+            </div>
           </div>
         </div>
       ),
