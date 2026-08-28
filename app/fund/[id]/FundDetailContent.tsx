@@ -6,7 +6,9 @@ import { supabase } from '@/app/lib/supabase';
 
 type FundItem = {
   name: string;
+  code?: string;
   price?: number;
+  base_price?: number;
   shares?: number;
   amount?: number;
   ratio?: number;
@@ -56,9 +58,9 @@ const OHTANI_FUND_EXAMPLE: Fund = {
   description:
     '大谷翔平選手がCM出演・スポンサー契約を結んでいる企業株だけで組んだ勝負ファンド！彼の世界的な活躍とともに企業価値も爆上がりすることを期待しています。',
   items: [
-    { name: 'コーセー (4922)', ratio: 30, color: '#2563EB' },
-    { name: '伊藤園 (2593)', ratio: 30, color: '#16A34A' },
-    { name: 'セイコーグループ (8050)', ratio: 20, color: '#EA580C' },
+    { name: 'コーセー (4922)', code: '4922', ratio: 30, color: '#2563EB', price: 9000, base_price: 9000 },
+    { name: '伊藤園 (2593)', code: '2593', ratio: 30, color: '#16A34A', price: 4000, base_price: 4000 },
+    { name: 'セイコーグループ (8050)', code: '8050', ratio: 20, color: '#EA580C', price: 3500, base_price: 3500 },
     { name: '西川', ratio: 20, color: '#DB2777' },
   ],
 };
@@ -121,6 +123,9 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [latestPrices, setLatestPrices] = useState<Record<string, number>>({});
+  const [isLoadingPrices, setIsLoadingPrices] = useState(false);
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
 
@@ -155,6 +160,58 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
       fetchFund();
     }
   }, [fundId]);
+
+  useEffect(() => {
+    if (!fund) return;
+
+    let rawItems: any[] = [];
+    if (Array.isArray(fund.items)) {
+      rawItems = fund.items;
+    } else if (typeof fund.items === 'string') {
+      try {
+        rawItems = JSON.parse(fund.items);
+      } catch {
+        rawItems = [];
+      }
+    }
+
+    const codes = rawItems
+      .map((item) => {
+        if (item.code) return String(item.code);
+        const match = String(item.name || '').match(/\b\d{4}\b/);
+        return match ? match[0] : null;
+      })
+      .filter((code): code is string => !!code);
+
+    if (codes.length === 0) return;
+
+    const uniqueCodes = Array.from(new Set(codes));
+    setIsLoadingPrices(true);
+
+    Promise.all(
+      uniqueCodes.map(async (code) => {
+        try {
+          const res = await fetch(`/api/stocks/quote?code=${code}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.closePrice) {
+              return { code, price: data.closePrice };
+            }
+          }
+        } catch {
+          // ignore
+        }
+        return null;
+      })
+    ).then((results) => {
+      const priceMap: Record<string, number> = {};
+      results.forEach((r) => {
+        if (r) priceMap[r.code] = r.price;
+      });
+      setLatestPrices(priceMap);
+      setIsLoadingPrices(false);
+    });
+  }, [fund]);
 
   const handleFunnyClick = async () => {
     if (!fund || reactedFunds.includes(fund.id)) return;
@@ -254,46 +311,91 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
 
   const formattedItems = rawItems.map((item, idx) => {
     const name = (item.name || `銘柄${idx + 1}`).trim();
-    const price = item.price ? Number(item.price) : undefined;
+    const code = item.code || (name.match(/\b\d{4}\b/) ? name.match(/\b\d{4}\b/)![0] : undefined);
+    const basePrice = item.base_price !== undefined ? Number(item.base_price) : (item.price ? Number(item.price) : undefined);
+    const price = item.price ? Number(item.price) : basePrice;
     const shares = item.shares ? Number(item.shares) : undefined;
-    let amount = item.amount ? Math.floor(Number(item.amount)) : 0;
-    if (!amount && price !== undefined && shares !== undefined) {
-      amount = Math.floor(price * shares);
+    
+    let baseAmount = item.amount ? Math.floor(Number(item.amount)) : 0;
+    if (!baseAmount && basePrice !== undefined && shares !== undefined) {
+      baseAmount = Math.floor(basePrice * shares);
     }
+
+    const currentPrice = code && latestPrices[code] ? latestPrices[code] : undefined;
+    let currentAmount: number | undefined = undefined;
+    if (currentPrice !== undefined && shares !== undefined) {
+      currentAmount = Math.floor(currentPrice * shares);
+    }
+
+    let changeRate: number | null = null;
+    if (currentPrice !== undefined && basePrice !== undefined && basePrice > 0) {
+      changeRate = parseFloat((((currentPrice - basePrice) / basePrice) * 100).toFixed(2));
+    }
+
     return {
       name,
+      code,
+      basePrice,
+      currentPrice,
+      changeRate,
       price,
       shares,
-      amount,
+      baseAmount,
+      currentAmount,
       ratio: item.ratio ? Math.floor(Number(item.ratio)) : 0,
       color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
     };
   });
 
-  const totalAmount = fund.total_amount
+  const totalBaseAmount = fund.total_amount
     ? Math.floor(Number(fund.total_amount))
-    : Math.floor(formattedItems.reduce((s, i) => s + (i.amount || 0), 0));
+    : Math.floor(formattedItems.reduce((s, i) => s + (i.baseAmount || 0), 0));
 
-  const weightTotal = totalAmount > 0
-    ? totalAmount
+  // 現在の合計金額
+  const hasCurrentPrices = formattedItems.some((i) => i.currentAmount !== undefined);
+  const totalCurrentAmount = hasCurrentPrices
+    ? formattedItems.reduce((s, i) => s + (i.currentAmount !== undefined ? i.currentAmount : i.baseAmount), 0)
+    : undefined;
+
+  const weightTotal = totalBaseAmount > 0
+    ? totalBaseAmount
     : formattedItems.reduce((s, i) => s + (i.ratio || 1), 0) || 1;
 
   const displayItems = formattedItems.map((item) => {
-    const itemRatio = totalAmount > 0
-      ? Math.floor((item.amount / totalAmount) * 100)
+    const itemRatio = totalBaseAmount > 0
+      ? Math.floor((item.baseAmount / totalBaseAmount) * 100)
       : item.ratio || Math.floor(100 / (formattedItems.length || 1));
     return {
       ...item,
       displayRatio: itemRatio,
-      weight: totalAmount > 0 ? item.amount : (item.ratio || 1),
+      weight: totalBaseAmount > 0 ? item.baseAmount : (item.ratio || 1),
     };
   });
+
+  // 全体トータルリターンの計算
+  let totalWeightedReturn: number | null = null;
+  if (totalCurrentAmount !== undefined && totalBaseAmount > 0) {
+    totalWeightedReturn = parseFloat((((totalCurrentAmount - totalBaseAmount) / totalBaseAmount) * 100).toFixed(2));
+  } else {
+    let validWeightSum = 0;
+    let weightedReturnSum = 0;
+    displayItems.forEach((item) => {
+      if (item.changeRate !== null && item.changeRate !== undefined) {
+        const weight = item.displayRatio;
+        weightedReturnSum += item.changeRate * weight;
+        validWeightSum += weight;
+      }
+    });
+    if (validWeightSum > 0) {
+      totalWeightedReturn = parseFloat((weightedReturnSum / validWeightSum).toFixed(2));
+    }
+  }
 
   let currentAngle = 0;
   const formattedCreatedDate = formatDate(fund.created_at);
   const hasReacted = reactedFunds.includes(fund.id);
 
-  // X（Twitter）共有処理：比率リストを省き、こだわり文と問いかけでスマート化
+  // X（Twitter）共有処理
   const handleShareToX = () => {
     if (!fund) return;
 
@@ -301,7 +403,11 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
       ? `💬こだわり:\n${fund.description.length > 70 ? fund.description.slice(0, 67) + '...' : fund.description}\n\n`
       : '';
 
-    const text = `📊「${fund.title}」を考えました！\n作成者: @${fund.author}\n\n${descText}この構成で勝てると思う？あなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
+    const returnText = totalWeightedReturn !== null
+      ? `📈 成績: ${totalWeightedReturn >= 0 ? '+' : ''}${totalWeightedReturn}% (現在: ¥${totalCurrentAmount?.toLocaleString() || totalBaseAmount.toLocaleString()})\n`
+      : '';
+
+    const text = `📊「${fund.title}」\n作成者: @${fund.author}\n${returnText}\n${descText}この構成で勝てると思う？あなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
     const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://ore-fund.vercel.app/fund/${fund.id}`;
 
     const twitterIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
@@ -336,7 +442,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
 
       <main className="max-w-xl mx-auto px-4 pt-6 space-y-6">
         <article className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
-          <div className="flex justify-between items-center text-xs text-slate-500">
+          <div className="flex justify-between items-start text-xs text-slate-500">
             <div>
               投稿者:{' '}
               <button
@@ -349,11 +455,46 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               </button>
               {formattedCreatedDate && ` ・ ${formattedCreatedDate}`}
             </div>
-            {totalAmount > 0 && (
-              <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl border border-indigo-100 shadow-2xs">
-                ¥{totalAmount.toLocaleString()}
-              </span>
-            )}
+
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-2">
+                {/* トータルリターンバッジ */}
+                {totalWeightedReturn !== null ? (
+                  <span
+                    className={`text-xs font-black px-2.5 py-1 rounded-xl border flex items-center gap-1 shadow-2xs ${
+                      totalWeightedReturn >= 0
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}
+                    title="作成日からのトータルリターン"
+                  >
+                    <span>{totalWeightedReturn >= 0 ? '▲' : '▼'}</span>
+                    <span>{totalWeightedReturn >= 0 ? `+${totalWeightedReturn}` : totalWeightedReturn}%</span>
+                  </span>
+                ) : isLoadingPrices ? (
+                  <span className="text-[10px] text-slate-400 animate-pulse bg-slate-100 px-2 py-0.5 rounded-lg">
+                    騰落率計算中...
+                  </span>
+                ) : null}
+
+                {totalCurrentAmount !== undefined ? (
+                  <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl border border-indigo-100 shadow-2xs">
+                    現在: ¥{totalCurrentAmount.toLocaleString()}
+                  </span>
+                ) : totalBaseAmount > 0 ? (
+                  <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl border border-indigo-100 shadow-2xs">
+                    ¥{totalBaseAmount.toLocaleString()}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* 当時合計金額 */}
+              {totalCurrentAmount !== undefined && totalBaseAmount > 0 && (
+                <span className="text-[10px] text-slate-400 font-medium">
+                  当時合計: ¥{totalBaseAmount.toLocaleString()}
+                </span>
+              )}
+            </div>
           </div>
 
           <div>
@@ -405,7 +546,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                     return (
                       <div
                         key={idx}
-                        onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.amount, price: item.price, shares: item.shares })}
+                        onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.baseAmount, price: item.price, shares: item.shares })}
                         onMouseLeave={() => setHoveredItem(null)}
                         style={{
                           flexGrow: item.weight,
@@ -473,7 +614,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                           style={{
                             opacity: hoveredItem && !isHovered ? 0.35 : 1,
                           }}
-                          onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.amount, price: item.price, shares: item.shares })}
+                          onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.baseAmount, price: item.price, shares: item.shares })}
                           onMouseLeave={() => setHoveredItem(null)}
                         />
                       );
@@ -517,7 +658,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 return (
                   <div
                     key={idx}
-                    onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.amount, price: item.price, shares: item.shares })}
+                    onMouseEnter={() => setHoveredItem({ name: item.name, ratio: item.displayRatio, color: item.color, amount: item.baseAmount, price: item.price, shares: item.shares })}
                     onMouseLeave={() => setHoveredItem(null)}
                     className={`flex justify-between items-center p-3.5 text-sm transition-all duration-150 cursor-pointer ${
                       isHovered ? 'bg-indigo-50/80 pl-5' : 'bg-white hover:bg-slate-50'
@@ -532,16 +673,37 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                         }}
                       />
                       <div>
-                        <span className={`font-medium ${isHovered ? 'text-indigo-950 font-bold' : 'text-slate-800'}`}>
-                          {item.name}
-                        </span>
-                        {item.price && item.shares ? (
-                          <span className="text-xs text-slate-400 block">
-                            ¥{item.price.toLocaleString()} × {item.shares}株
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${isHovered ? 'text-indigo-950 font-bold' : 'text-slate-800'}`}>
+                            {item.name}
                           </span>
-                        ) : item.amount ? (
-                          <span className="text-xs text-slate-400 block">
-                            ¥{item.amount.toLocaleString()}
+                          {/* 個別騰落率バッジ */}
+                          {item.changeRate !== null && item.changeRate !== undefined && (
+                            <span
+                              className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
+                                item.changeRate >= 0
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                  : 'bg-rose-50 text-rose-600 border border-rose-100'
+                              }`}
+                            >
+                              {item.changeRate >= 0 ? `+${item.changeRate}%` : `${item.changeRate}%`}
+                            </span>
+                          )}
+                        </div>
+
+                        {item.basePrice && item.shares ? (
+                          <span className="text-xs text-slate-400 block mt-0.5">
+                            {item.currentPrice ? (
+                              <>
+                                当時: ¥{item.basePrice.toLocaleString()} → <span className="font-semibold text-slate-700">現在: ¥{item.currentPrice.toLocaleString()}</span> ({item.shares}株)
+                              </>
+                            ) : (
+                              <>¥{item.basePrice.toLocaleString()} × {item.shares}株</>
+                            )}
+                          </span>
+                        ) : item.baseAmount ? (
+                          <span className="text-xs text-slate-400 block mt-0.5">
+                            ¥{item.baseAmount.toLocaleString()}
                           </span>
                         ) : null}
                       </div>

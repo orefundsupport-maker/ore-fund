@@ -6,7 +6,9 @@ import { supabase } from '@/app/lib/supabase';
 
 type FundItem = {
   name: string;
+  code?: string;
   price?: number | string;
+  base_price?: number | string;
   shares?: number | string;
   amount?: number | string;
   ratio?: number | string;
@@ -35,6 +37,8 @@ const BUDGET_FILTERS = [
   { label: '20万円以上', min: 200001 },
 ];
 
+type SortMode = 'latest' | 'return_desc';
+
 function getDonutSlicePath(
   cx: number, cy: number, rOuter: number, rInner: number,
   startAngleDeg: number, endAngleDeg: number
@@ -59,10 +63,78 @@ function getDonutSlicePath(
   ].join(' ');
 }
 
+// リターンと合計額を計算するヘルパー
+function computeFundPerformance(fund: Fund, latestPrices: Record<string, number>) {
+  let rawItems: any[] = [];
+  if (Array.isArray(fund.items)) rawItems = fund.items;
+  else if (typeof fund.items === 'string') {
+    try { rawItems = JSON.parse(fund.items); } catch { rawItems = []; }
+  }
+
+  let baseTotal = 0;
+  let currentTotal = 0;
+  let hasPrices = false;
+
+  const formattedItems = rawItems.map((item, idx) => {
+    const name = (item.name || `銘柄${idx + 1}`).trim();
+    const code = item.code || (name.match(/\b\d{4}\b/) ? name.match(/\b\d{4}\b/)![0] : undefined);
+    const basePrice = item.base_price !== undefined && item.base_price !== null && item.base_price !== ''
+      ? Number(item.base_price)
+      : (item.price !== undefined && item.price !== null && item.price !== '' ? Number(item.price) : undefined);
+    const shares = item.shares !== undefined && item.shares !== null && item.shares !== '' ? Number(item.shares) : undefined;
+    
+    let baseAmt = item.amount !== undefined && item.amount !== null && item.amount !== '' ? Math.floor(Number(item.amount)) : 0;
+    if (!baseAmt && basePrice !== undefined && shares !== undefined) {
+      baseAmt = Math.floor(basePrice * shares);
+    }
+    baseTotal += baseAmt;
+
+    const currentPrice = code && latestPrices[code] ? latestPrices[code] : undefined;
+    let currentAmt = baseAmt;
+    if (currentPrice !== undefined && shares !== undefined) {
+      currentAmt = Math.floor(currentPrice * shares);
+      hasPrices = true;
+    }
+    currentTotal += currentAmt;
+
+    let changeRate: number | null = null;
+    if (currentPrice !== undefined && basePrice !== undefined && basePrice > 0) {
+      changeRate = parseFloat((((currentPrice - basePrice) / basePrice) * 100).toFixed(2));
+    }
+
+    return {
+      name,
+      code,
+      basePrice,
+      currentPrice,
+      changeRate,
+      shares,
+      baseAmt,
+      currentAmt,
+      ratio: item.ratio ? Number(item.ratio) : 0,
+      color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
+    };
+  });
+
+  const finalBaseTotal = fund.total_amount ? Math.floor(Number(fund.total_amount)) : baseTotal;
+  let returnRate: number | null = null;
+  if (hasPrices && finalBaseTotal > 0) {
+    returnRate = parseFloat((((currentTotal - finalBaseTotal) / finalBaseTotal) * 100).toFixed(2));
+  }
+
+  return {
+    items: formattedItems,
+    baseTotal: finalBaseTotal,
+    currentTotal: hasPrices ? currentTotal : undefined,
+    returnRate,
+  };
+}
+
 function FundCard({
   fund,
   chartType,
   hasReacted,
+  latestPrices,
   onFunnyClick,
   onAuthorClick,
   onClick,
@@ -70,57 +142,26 @@ function FundCard({
   fund: Fund;
   chartType: 'bar' | 'pie';
   hasReacted: boolean;
+  latestPrices: Record<string, number>;
   onFunnyClick: (fundId: string, currentCount: number) => void;
   onAuthorClick: (author: string) => void;
   onClick: () => void;
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const perf = computeFundPerformance(fund, latestPrices);
 
-  let rawItems: any[] = [];
-  if (Array.isArray(fund.items)) {
-    rawItems = fund.items;
-  } else if (typeof fund.items === 'string') {
-    try {
-      rawItems = JSON.parse(fund.items);
-    } catch {
-      rawItems = [];
-    }
-  }
+  const weightTotal = perf.baseTotal > 0
+    ? perf.baseTotal
+    : perf.items.reduce((s, i) => s + (i.ratio || 1), 0) || 1;
 
-  const formattedItems = rawItems.map((item, idx) => {
-    const name = (item.name || `銘柄${idx + 1}`).trim();
-    const price = item.price !== undefined && item.price !== null && item.price !== '' ? Number(item.price) : undefined;
-    const shares = item.shares !== undefined && item.shares !== null && item.shares !== '' ? Number(item.shares) : undefined;
-    let amount = item.amount !== undefined && item.amount !== null && item.amount !== '' ? Math.floor(Number(item.amount)) : 0;
-    if (!amount && price !== undefined && shares !== undefined) {
-      amount = Math.floor(price * shares);
-    }
-    return {
-      name,
-      price,
-      shares,
-      amount,
-      ratio: item.ratio ? Number(item.ratio) : 0,
-      color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
-    };
-  });
-
-  const totalAmt = fund.total_amount
-    ? Math.floor(Number(fund.total_amount))
-    : formattedItems.reduce((s, i) => s + i.amount, 0);
-
-  const weightTotal = totalAmt > 0
-    ? totalAmt
-    : formattedItems.reduce((s, i) => s + (i.ratio || 1), 0) || 1;
-
-  const displayItems = formattedItems.map((item) => {
-    const itemRatio = totalAmt > 0
-      ? Math.floor((item.amount / totalAmt) * 100)
-      : item.ratio || Math.floor(100 / (formattedItems.length || 1));
+  const displayItems = perf.items.map((item) => {
+    const itemRatio = perf.baseTotal > 0
+      ? Math.floor((item.baseAmt / perf.baseTotal) * 100)
+      : item.ratio || Math.floor(100 / (perf.items.length || 1));
     return {
       ...item,
       displayRatio: itemRatio,
-      weight: totalAmt > 0 ? item.amount : (item.ratio || 1),
+      weight: perf.baseTotal > 0 ? item.baseAmt : (item.ratio || 1),
     };
   });
 
@@ -129,11 +170,11 @@ function FundCard({
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-indigo-300 transition-all duration-200 cursor-pointer space-y-4"
+      className="group bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs hover:shadow-2xl hover:border-indigo-300 hover:-translate-y-1.5 transition-all duration-300 cursor-pointer space-y-4 relative"
     >
       <div className="flex justify-between items-start gap-2">
         <div className="space-y-0.5 flex-grow min-w-0">
-          <h4 className="font-extrabold text-slate-900 text-base leading-snug truncate">
+          <h4 className="font-extrabold text-slate-900 text-base leading-snug truncate group-hover:text-indigo-600 transition-colors">
             {fund.title}
           </h4>
           <button
@@ -148,11 +189,39 @@ function FundCard({
             @{fund.author}
           </button>
         </div>
-        {totalAmt > 0 && (
-          <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-3 py-1 rounded-xl shrink-0 border border-indigo-100 shadow-2xs">
-            ¥{totalAmt.toLocaleString()}
-          </span>
-        )}
+
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <div className="flex items-center gap-1.5">
+            {perf.returnRate !== null && (
+              <span
+                className={`text-xs font-black px-2 py-0.5 rounded-xl border flex items-center gap-0.5 shadow-2xs ${
+                  perf.returnRate >= 0
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}
+              >
+                <span>{perf.returnRate >= 0 ? '▲' : '▼'}</span>
+                <span>{perf.returnRate >= 0 ? `+${perf.returnRate}` : perf.returnRate}%</span>
+              </span>
+            )}
+
+            {perf.currentTotal !== undefined ? (
+              <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl border border-indigo-100 shadow-2xs">
+                現在: ¥{perf.currentTotal.toLocaleString()}
+              </span>
+            ) : perf.baseTotal > 0 ? (
+              <span className="text-xs font-black bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl border border-indigo-100 shadow-2xs">
+                ¥{perf.baseTotal.toLocaleString()}
+              </span>
+            ) : null}
+          </div>
+
+          {perf.currentTotal !== undefined && perf.baseTotal > 0 && (
+            <span className="text-[10px] text-slate-400 font-medium">
+              当時合計: ¥{perf.baseTotal.toLocaleString()}
+            </span>
+          )}
+        </div>
       </div>
 
       {fund.description && (
@@ -215,7 +284,7 @@ function FundCard({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
             {displayItems.map((item, idx) => {
               const isHovered = hoveredIdx === idx;
 
@@ -236,14 +305,31 @@ function FundCard({
                       style={{ backgroundColor: item.color }}
                     />
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-800 truncate">
-                        {item.name}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {item.name}
+                        </span>
+                        {item.changeRate !== null && item.changeRate !== undefined && (
+                          <span
+                            className={`text-[10px] font-black px-1.5 py-0.2 rounded-md ${
+                              item.changeRate >= 0 ? 'text-emerald-700 bg-emerald-100' : 'text-rose-700 bg-rose-100'
+                            }`}
+                          >
+                            {item.changeRate >= 0 ? `+${item.changeRate}%` : `${item.changeRate}%`}
+                          </span>
+                        )}
                       </div>
-                      <div className="text-[10px] text-slate-500 font-medium truncate">
-                        {item.price !== undefined && item.shares !== undefined ? (
-                          `¥${item.price.toLocaleString()} × ${item.shares}株`
-                        ) : item.amount ? (
-                          `¥${item.amount.toLocaleString()}`
+                      <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                        {item.basePrice !== undefined ? (
+                          <span>
+                            当時: ¥{item.basePrice.toLocaleString()}
+                            {item.currentPrice && (
+                              <span className="text-slate-800 font-bold"> → 今: ¥{item.currentPrice.toLocaleString()}</span>
+                            )}
+                            {item.shares && ` (${item.shares}株)`}
+                          </span>
+                        ) : item.baseAmt ? (
+                          `¥${item.baseAmt.toLocaleString()}`
                         ) : (
                           '比率指定'
                         )}
@@ -321,7 +407,7 @@ function FundCard({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
             {displayItems.map((item, idx) => {
               const isHovered = hoveredIdx === idx;
 
@@ -342,14 +428,31 @@ function FundCard({
                       style={{ backgroundColor: item.color }}
                     />
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-800 truncate">
-                        {item.name}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {item.name}
+                        </span>
+                        {item.changeRate !== null && item.changeRate !== undefined && (
+                          <span
+                            className={`text-[10px] font-black px-1.5 py-0.2 rounded-md ${
+                              item.changeRate >= 0 ? 'text-emerald-700 bg-emerald-100' : 'text-rose-700 bg-rose-100'
+                            }`}
+                          >
+                            {item.changeRate >= 0 ? `+${item.changeRate}%` : `${item.changeRate}%`}
+                          </span>
+                        )}
                       </div>
-                      <div className="text-[10px] text-slate-500 font-medium truncate">
-                        {item.price !== undefined && item.shares !== undefined ? (
-                          `¥${item.price.toLocaleString()} × ${item.shares}株`
-                        ) : item.amount ? (
-                          `¥${item.amount.toLocaleString()}`
+                      <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                        {item.basePrice !== undefined ? (
+                          <span>
+                            当時: ¥{item.basePrice.toLocaleString()}
+                            {item.currentPrice && (
+                              <span className="text-slate-800 font-bold"> → 今: ¥{item.currentPrice.toLocaleString()}</span>
+                            )}
+                            {item.shares && ` (${item.shares}株)`}
+                          </span>
+                        ) : item.baseAmt ? (
+                          `¥${item.baseAmt.toLocaleString()}`
                         ) : (
                           '比率指定'
                         )}
@@ -393,21 +496,20 @@ function HomeContent() {
   const [loading, setLoading] = useState(true);
   const [selectedBudget, setSelectedBudget] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortMode, setSortMode] = useState<SortMode>('latest');
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [reactedFunds, setReactedFunds] = useState<string[]>([]);
+  const [latestPrices, setLatestPrices] = useState<Record<string, number>>({});
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (initialAuthor) {
-      setSearchQuery(initialAuthor);
-    }
+    if (initialAuthor) setSearchQuery(initialAuthor);
   }, [initialAuthor]);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem('reacted_funds');
-      if (saved) {
-        setReactedFunds(JSON.parse(saved));
-      }
+      if (saved) setReactedFunds(JSON.parse(saved));
     } catch {
       // ignore
     }
@@ -421,6 +523,45 @@ function HomeContent() {
 
       if (!error && data) {
         setFunds(data);
+
+        const allCodes = new Set<string>();
+        data.forEach((f) => {
+          let items: any[] = [];
+          if (Array.isArray(f.items)) items = f.items;
+          else if (typeof f.items === 'string') {
+            try { items = JSON.parse(f.items); } catch { items = []; }
+          }
+          items.forEach((it) => {
+            if (it.code) allCodes.add(String(it.code));
+            else {
+              const match = String(it.name || '').match(/\b\d{4}\b/);
+              if (match) allCodes.add(match[0]);
+            }
+          });
+        });
+
+        if (allCodes.size > 0) {
+          Promise.all(
+            Array.from(allCodes).map(async (code) => {
+              try {
+                const res = await fetch(`/api/stocks/quote?code=${code}`);
+                if (res.ok) {
+                  const d = await res.json();
+                  if (d.closePrice) return { code, price: d.closePrice };
+                }
+              } catch {
+                // ignore
+              }
+              return null;
+            })
+          ).then((results) => {
+            const priceMap: Record<string, number> = {};
+            results.forEach((r) => {
+              if (r) priceMap[r.code] = r.price;
+            });
+            setLatestPrices(priceMap);
+          });
+        }
       }
       setLoading(false);
     }
@@ -429,7 +570,6 @@ function HomeContent() {
 
   const handleFunnyClick = async (fundId: string, currentCount: number) => {
     if (reactedFunds.includes(fundId)) return;
-
     const nextReacted = [...reactedFunds, fundId];
     setReactedFunds(nextReacted);
     try {
@@ -437,91 +577,95 @@ function HomeContent() {
     } catch {
       // ignore
     }
-
     const newCount = currentCount + 1;
     setFunds((prev) =>
       prev.map((f) => (f.id === fundId ? { ...f, funny_count: newCount } : f))
     );
-
-    const { error } = await supabase
-      .from('funds')
-      .update({ funny_count: newCount })
-      .eq('id', fundId);
-
-    if (error) {
-      console.error('更新エラー:', error);
-    }
+    await supabase.from('funds').update({ funny_count: newCount }).eq('id', fundId);
   };
 
   const handleResetToHome = () => {
     setSelectedBudget('all');
     setSearchQuery('');
+    setSortMode('latest');
     router.push('/');
   };
 
-  const handleAuthorClick = (authorName: string) => {
-    setSearchQuery(authorName);
-  };
+  // 上昇率ランキング（TOP5）
+  const returnRanking = [...funds]
+    .map((f) => ({
+      fund: f,
+      perf: computeFundPerformance(f, latestPrices),
+    }))
+    .filter((x) => x.perf.returnRate !== null)
+    .sort((a, b) => (b.perf.returnRate || 0) - (a.perf.returnRate || 0))
+    .slice(0, 5);
 
-  // 予算 ＆ キーワード横断（ファンド名・作者・説明・銘柄名）フィルター
-  const filteredFunds = funds.filter((fund) => {
-    let rawItems: any[] = [];
-    if (Array.isArray(fund.items)) {
-      rawItems = fund.items;
-    } else if (typeof fund.items === 'string') {
-      try {
-        rawItems = JSON.parse(fund.items);
-      } catch {
-        rawItems = [];
+  // フィルタリング ＆ ソート
+  const filteredFunds = funds
+    .filter((fund) => {
+      let rawItems: any[] = [];
+      if (Array.isArray(fund.items)) rawItems = fund.items;
+      else if (typeof fund.items === 'string') {
+        try { rawItems = JSON.parse(fund.items); } catch { rawItems = []; }
       }
-    }
 
-    // 1. キーワード検索（ファンド名、投稿者名、説明文、銘柄名）
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      const matchTitle = (fund.title || '').toLowerCase().includes(q);
-      const matchAuthor = (fund.author || '').toLowerCase().includes(q);
-      const matchDesc = (fund.description || '').toLowerCase().includes(q);
-      const matchItems = rawItems.some((item) => (item.name || '').toLowerCase().includes(q));
-
-      if (!matchTitle && !matchAuthor && !matchDesc && !matchItems) {
-        return false;
+      const q = searchQuery.trim().toLowerCase();
+      if (q) {
+        const matchTitle = (fund.title || '').toLowerCase().includes(q);
+        const matchAuthor = (fund.author || '').toLowerCase().includes(q);
+        const matchDesc = (fund.description || '').toLowerCase().includes(q);
+        const matchItems = rawItems.some((item) => (item.name || '').toLowerCase().includes(q));
+        if (!matchTitle && !matchAuthor && !matchDesc && !matchItems) return false;
       }
-    }
 
-    // 2. 予算フィルター
-    if (selectedBudget === 'all') return true;
+      if (selectedBudget === 'all') return true;
+      const perf = computeFundPerformance(fund, latestPrices);
+      const currentFilter = BUDGET_FILTERS.find((f) => f.label === selectedBudget);
+      if (!currentFilter) return true;
 
-    const calculatedTotal = rawItems.reduce((sum, item) => {
-      const p = Number(item.price) || 0;
-      const s = Number(item.shares) || 0;
-      return sum + (item.amount ? Number(item.amount) : Math.floor(p * s));
-    }, 0);
-
-    const totalAmt = fund.total_amount ? Number(fund.total_amount) : calculatedTotal;
-    const currentFilter = BUDGET_FILTERS.find((f) => f.label === selectedBudget);
-    if (!currentFilter) return true;
-
-    if (currentFilter.min !== undefined && currentFilter.max !== undefined) {
-      return totalAmt >= currentFilter.min && totalAmt <= currentFilter.max;
-    }
-    if (currentFilter.min !== undefined && currentFilter.max === undefined) {
-      return totalAmt >= currentFilter.min;
-    }
-    return true;
-  });
+      if (currentFilter.min !== undefined && currentFilter.max !== undefined) {
+        return perf.baseTotal >= currentFilter.min && perf.baseTotal <= currentFilter.max;
+      }
+      if (currentFilter.min !== undefined && currentFilter.max === undefined) {
+        return perf.baseTotal >= currentFilter.min;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortMode === 'return_desc') {
+        const perfA = computeFundPerformance(a, latestPrices).returnRate ?? -9999;
+        const perfB = computeFundPerformance(b, latestPrices).returnRate ?? -9999;
+        return perfB - perfA;
+      }
+      return 0; // 'latest' は Supabase の order(created_at) 順
+    });
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-28 relative">
-      <header className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3 shadow-xs flex items-center justify-between">
-        <button
-          type="button"
-          onClick={handleResetToHome}
-          className="flex items-center gap-2 hover:opacity-80 transition cursor-pointer text-left"
-        >
-          <span className="text-xl">📊</span>
-          <h1 className="text-base font-black text-slate-900 tracking-tight">俺ファンド</h1>
-        </button>
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 shadow-xs flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* モバイル用ドロワー開閉ボタン */}
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="lg:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+            title="ランキングとフィルターを開く"
+          >
+            <span>👑</span>
+            <span>上昇率 & 絞り込み</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetToHome}
+            className="flex items-center gap-2 hover:opacity-80 transition cursor-pointer text-left"
+          >
+            <span className="text-xl">📊</span>
+            <h1 className="text-base font-black text-slate-900 tracking-tight">俺ファンド</h1>
+          </button>
+        </div>
+
         <button
           type="button"
           onClick={() => router.push('/create')}
@@ -532,56 +676,185 @@ function HomeContent() {
         </button>
       </header>
 
-      <main className="max-w-xl mx-auto px-4 pt-5 space-y-5">
-        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-5 text-white shadow-md space-y-2">
-          <div className="flex items-center gap-2">
+      <div className="max-w-6xl mx-auto px-4 pt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* ========================================================= */}
+        {/* 左側：サイドバー（PCは常時表示、スマホはぶわっとドロワー表示） */}
+        {/* ========================================================= */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-80 bg-white p-5 shadow-2xl border-r border-slate-200 overflow-y-auto transition-transform duration-300 ease-out lg:static lg:block lg:w-auto lg:p-0 lg:shadow-none lg:border-none lg:z-auto lg:col-span-4 ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
+        >
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 lg:hidden">
+            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
+              <span>👑</span>
+              <span>上昇率 & 絞り込み</span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
+            >
+              ✕ 閉じる
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            {/* 📈 上昇率（リターン）ランキング */}
+            <div className="bg-white rounded-3xl p-4 lg:p-5 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                  <span>👑</span>
+                  <span>上昇率 TOP5</span>
+                </h3>
+                <span className="text-[10px] text-slate-400 font-bold">作成時比較</span>
+              </div>
+
+              {returnRanking.length === 0 ? (
+                <p className="text-xs text-slate-400 py-3 text-center">計算中またはデータなし</p>
+              ) : (
+                <div className="space-y-2">
+                  {returnRanking.map((item, idx) => (
+                    <div
+                      key={item.fund.id}
+                      onClick={() => {
+                        setIsSidebarOpen(false);
+                        router.push(`/fund/${item.fund.id}`);
+                      }}
+                      className="p-2.5 bg-slate-50 hover:bg-indigo-50/70 rounded-2xl border border-slate-100 transition-all cursor-pointer flex items-center justify-between gap-2 group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
+                          idx === 0 ? 'bg-amber-400 text-slate-900 shadow-2xs' :
+                          idx === 1 ? 'bg-slate-300 text-slate-800' :
+                          idx === 2 ? 'bg-amber-600/60 text-white' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
+                            {item.fund.title}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate">@{item.fund.author}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-black text-emerald-600 shrink-0 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
+                        +{item.perf.returnRate}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 💰 予算・価格別フィルター */}
+            <div className="bg-white rounded-3xl p-4 lg:p-5 border border-slate-200/80 shadow-xs space-y-3">
+              <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                <span>💰</span>
+                <span>価格帯で絞り込み</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                {BUDGET_FILTERS.map((filter) => {
+                  const isSelected = (filter.value === 'all' && selectedBudget === 'all') || selectedBudget === filter.label;
+                  return (
+                    <button
+                      key={filter.label}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBudget(filter.value === 'all' ? 'all' : filter.label);
+                        setIsSidebarOpen(false);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition text-left cursor-pointer border ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100'
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* ドロワーの背景マスク（スマホ用） */}
+        {isSidebarOpen && (
+          <div
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-2xs lg:hidden animate-in fade-in duration-200"
+          />
+        )}
+
+        {/* ========================================================= */}
+        {/* 右側：メインタイムライン */}
+        {/* ========================================================= */}
+        <main className="lg:col-span-8 space-y-5">
+          <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-5 text-white shadow-md space-y-2">
             <span className="bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-xs">
               仮想ポートフォリオ
             </span>
+            <h2 className="text-lg font-black leading-snug">理想のファンドを組み立ててシェアしよう📈</h2>
+            <p className="text-xs text-indigo-100 leading-relaxed">
+              気になる銘柄・推し企業を組み合わせてオリジナル投資信託を作成。みんなのポートフォリオを見てアレンジもできます。
+            </p>
           </div>
-          <h2 className="text-lg font-black leading-snug">理想のファンドを組み立ててシェアしよう📈</h2>
-          <p className="text-xs text-indigo-100 leading-relaxed">
-            気になる銘柄・推し企業を組み合わせてオリジナル投資信託を作成。みんなのポートフォリオを見てアレンジもできます。
-          </p>
-        </div>
 
-        {/* 🔍 キーワード ＆ 名前検索バー */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+          {/* 🔍 検索バー */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ファンド名、作成者名、銘柄名でリアルタイム検索..."
+              className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-bold"
+              >
+                ✕
+              </button>
+            )}
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ファンド名、作成者名、銘柄名でリアルタイム検索..."
-            className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs placeholder:text-slate-400"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-bold"
-            >
-              ✕
-            </button>
-          )}
-        </div>
 
-        {/* 予算フィルター & グラフ切替タブ */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold px-1">
-            <span>💰 予算で絞り込み</span>
-            <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-[10px] font-bold">
+          {/* 並び替えソート ＆ グラフ切り替えタブ */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-200 text-xs font-bold shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setSortMode('latest')}
+                className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
+                  sortMode === 'latest' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                🕒 新着順
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortMode('return_desc')}
+                className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
+                  sortMode === 'return_desc' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                📈 リターン順
+              </button>
+            </div>
+
+            <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-[10px] font-bold">
               <button
                 type="button"
                 onClick={() => setChartType('bar')}
-                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                  chartType === 'bar'
-                    ? 'bg-white text-indigo-600 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
+                className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
+                  chartType === 'bar' ? 'bg-white text-indigo-600 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 📊 1本バー
@@ -589,10 +862,8 @@ function HomeContent() {
               <button
                 type="button"
                 onClick={() => setChartType('pie')}
-                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                  chartType === 'pie'
-                    ? 'bg-white text-indigo-600 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
+                className={`px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
+                  chartType === 'pie' ? 'bg-white text-indigo-600 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 🍕 円グラフ
@@ -600,67 +871,41 @@ function HomeContent() {
             </div>
           </div>
 
-          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold">
-            {BUDGET_FILTERS.map((filter) => {
-              const isSelected = (filter.value === 'all' && selectedBudget === 'all') || selectedBudget === filter.label;
-              return (
+          {/* ファンド一覧 */}
+          {loading ? (
+            <div className="text-center py-16 text-slate-400 text-sm">ファンドを読み込み中...</div>
+          ) : filteredFunds.length === 0 ? (
+            <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center space-y-3 shadow-xs">
+              <div className="text-3xl">🔍</div>
+              <p className="text-sm font-bold text-slate-700">条件に一致するファンドが見つかりませんでした</p>
+              {searchQuery && (
                 <button
-                  key={filter.label}
                   type="button"
-                  onClick={() => setSelectedBudget(filter.value === 'all' ? 'all' : filter.label)}
-                  className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer shrink-0 border ${
-                    isSelected
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs scale-102'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs text-indigo-600 font-bold hover:underline block mx-auto cursor-pointer"
                 >
-                  {filter.label}
+                  検索ワードをクリアする
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ファンド一覧 */}
-        {loading ? (
-          <div className="text-center py-16 text-slate-400 text-sm">ファンドを読み込み中...</div>
-        ) : filteredFunds.length === 0 ? (
-          <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center space-y-3 shadow-xs">
-            <div className="text-3xl">🔍</div>
-            <p className="text-sm font-bold text-slate-700">条件に一致するファンドが見つかりませんでした</p>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="text-xs text-indigo-600 font-bold hover:underline block mx-auto cursor-pointer"
-              >
-                検索ワードをクリアする
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => router.push('/create')}
-              className="text-xs bg-indigo-600 text-white font-bold px-4 py-2.5 rounded-full hover:bg-indigo-700 transition cursor-pointer mt-2"
-            >
-              ファンドを作成する 🚀
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredFunds.map((fund) => (
-              <FundCard
-                key={fund.id}
-                fund={fund}
-                chartType={chartType}
-                hasReacted={reactedFunds.includes(fund.id)}
-                onFunnyClick={handleFunnyClick}
-                onAuthorClick={handleAuthorClick}
-                onClick={() => router.push(`/fund/${fund.id}`)}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredFunds.map((fund) => (
+                <FundCard
+                  key={fund.id}
+                  fund={fund}
+                  chartType={chartType}
+                  hasReacted={reactedFunds.includes(fund.id)}
+                  latestPrices={latestPrices}
+                  onFunnyClick={handleFunnyClick}
+                  onAuthorClick={(auth) => setSearchQuery(auth)}
+                  onClick={() => router.push(`/fund/${fund.id}`)}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
 
       <button
         type="button"

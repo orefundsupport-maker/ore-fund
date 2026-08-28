@@ -7,9 +7,12 @@ import { getCompanyNameByCode } from '@/app/lib/stockMaster';
 
 type FundItem = {
   name: string;
+  code?: string;
   price: string;
   shares: string;
   color: string;
+  isAutoPrice?: boolean; // 公式株価がセットされたかどうかのフラグ
+  isLoadingPrice?: boolean; // 株価取得中のローディングフラグ
 };
 
 // 視認性が高く、隣り合っても被りにくい12色のカラーパレット
@@ -94,8 +97,8 @@ function CreateFundContent() {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [items, setItems] = useState<FundItem[]>([
-    { name: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
-    { name: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
+    { name: '', code: '', price: '', shares: '1', color: DEFAULT_COLORS[0] },
+    { name: '', code: '', price: '', shares: '1', color: DEFAULT_COLORS[1] },
   ]);
 
   const [showShareModal, setShowShareModal] = useState(false);
@@ -138,9 +141,11 @@ function CreateFundContent() {
         if (rawItems.length > 0) {
           const loadedItems: FundItem[] = rawItems.map((item, idx) => ({
             name: item.name || '',
+            code: item.code || '',
             price: item.price !== undefined && item.price !== null ? String(item.price) : '',
             shares: item.shares !== undefined && item.shares !== null ? String(item.shares) : '1',
             color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length],
+            isAutoPrice: !!item.code,
           }));
           setItems(loadedItems);
         }
@@ -174,13 +179,49 @@ function CreateFundContent() {
 
   const handleAddItem = () => {
     const nextColor = DEFAULT_COLORS[items.length % DEFAULT_COLORS.length];
-    setItems([...items, { name: '', price: '', shares: '1', color: nextColor }]);
+    setItems([...items, { name: '', code: '', price: '', shares: '1', color: nextColor }]);
   };
 
   const handleRemoveItem = (index: number) => {
     if (items.length <= 1) return;
     setItems(items.filter((_, i) => i !== index));
     if (hoveredIndex === index) setHoveredIndex(null);
+  };
+
+  // 銘柄名・コード入力時に公式株価を自動取得する関数
+  const fetchStockPrice = async (index: number, code: string) => {
+    setItems((prev) => {
+      const updated = [...prev];
+      if (updated[index]) updated[index].isLoadingPrice = true;
+      return updated;
+    });
+
+    try {
+      const res = await fetch(`/api/stocks/quote?code=${code}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.closePrice) {
+          setItems((prev) => {
+            const updated = [...prev];
+            if (updated[index]) {
+              updated[index].price = String(data.closePrice);
+              updated[index].isAutoPrice = true;
+              updated[index].isLoadingPrice = false;
+            }
+            return updated;
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('株価取得失敗:', e);
+    }
+
+    setItems((prev) => {
+      const updated = [...prev];
+      if (updated[index]) updated[index].isLoadingPrice = false;
+      return updated;
+    });
   };
 
   const handleItemChange = (index: number, field: keyof FundItem, value: string) => {
@@ -192,6 +233,14 @@ function CreateFundContent() {
       const matched = getCompanyNameByCode(codeTrimmed);
       if (matched) {
         processedValue = `${matched} (${codeTrimmed})`;
+        newItems[index].code = codeTrimmed;
+        fetchStockPrice(index, codeTrimmed);
+      } else {
+        const matchDigits = codeTrimmed.match(/\b\d{4}\b/);
+        if (matchDigits) {
+          newItems[index].code = matchDigits[0];
+          fetchStockPrice(index, matchDigits[0]);
+        }
       }
     }
 
@@ -206,10 +255,13 @@ function CreateFundContent() {
     return {
       index: idx,
       name: item.name.trim() || `銘柄${idx + 1}`,
+      code: item.code || '',
       price: p,
       shares: s,
       amount,
       color: item.color,
+      isAutoPrice: item.isAutoPrice,
+      isLoadingPrice: item.isLoadingPrice,
     };
   });
 
@@ -229,9 +281,13 @@ function CreateFundContent() {
     }
     setIsSubmitting(true);
     const finalAuthor = previewAuthor || '名無し投資家';
+
+    // 確定前日終値を base_price としてSupabaseに保存
     const formattedItemsToSave = validItems.map((item) => ({
       name: item.name,
+      code: item.code,
       price: item.price,
+      base_price: item.price,
       shares: item.shares,
       amount: item.amount,
       ratio: totalAmount > 0 ? Math.floor((item.amount / totalAmount) * 100) : 0,
@@ -274,7 +330,6 @@ function CreateFundContent() {
     if (!createdFund) return;
     const randomHook = SHARE_HOOKS[Math.floor(Math.random() * SHARE_HOOKS.length)];
     
-    // こだわり・説明文（長すぎる場合は適度に省略）
     const descText = createdFund.description?.trim()
       ? `💬こだわり:\n${createdFund.description.length > 70 ? createdFund.description.slice(0, 67) + '...' : createdFund.description}\n\n`
       : '';
@@ -373,7 +428,7 @@ function CreateFundContent() {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-sm font-bold text-slate-700">📊 組み入れ銘柄</h2>
-                <span className="text-[10px] text-slate-400">※ 証券コード4桁（例: 7203）入力で会社名を自動補完</span>
+                <span className="text-[10px] text-slate-400">※ 証券コード4桁（例: 7203）入力で会社名と前日終値を自動取得</span>
               </div>
               <span className="text-xs font-bold text-indigo-600">
                 合計: ¥{totalAmount.toLocaleString()}
@@ -424,15 +479,27 @@ function CreateFundContent() {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-0.5">想定株価 (円)</label>
+                        <div className="flex justify-between items-center mb-0.5">
+                          <label className="block text-[10px] text-slate-500 font-bold">
+                            株価 (円)
+                          </label>
+                          {item.isLoadingPrice ? (
+                            <span className="text-[10px] text-indigo-500 animate-pulse font-bold">取得中...</span>
+                          ) : item.isAutoPrice ? (
+                            <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1 rounded">🔒 前日終値</span>
+                          ) : null}
+                        </div>
                         <input
                           type="number"
                           step="any"
                           placeholder="例: 2500"
                           value={item.price}
+                          readOnly={item.isAutoPrice}
                           onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
                           onWheel={(e) => e.currentTarget.blur()}
-                          className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className={`w-full px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                            item.isAutoPrice ? 'bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed font-bold' : 'bg-white border-slate-200'
+                          }`}
                         />
                       </div>
                       <div>
