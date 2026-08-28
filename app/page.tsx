@@ -63,7 +63,6 @@ function getDonutSlicePath(
   ].join(' ');
 }
 
-// リターンと合計額を計算するヘルパー
 function computeFundPerformance(fund: Fund, latestPrices: Record<string, number>) {
   let rawItems: any[] = [];
   if (Array.isArray(fund.items)) rawItems = fund.items;
@@ -591,7 +590,6 @@ function HomeContent() {
     router.push('/');
   };
 
-  // 上昇率ランキング（TOP5）
   const returnRanking = [...funds]
     .map((f) => ({
       fund: f,
@@ -601,7 +599,6 @@ function HomeContent() {
     .sort((a, b) => (b.perf.returnRate || 0) - (a.perf.returnRate || 0))
     .slice(0, 5);
 
-  // フィルタリング ＆ ソート
   const filteredFunds = funds
     .filter((fund) => {
       let rawItems: any[] = [];
@@ -638,14 +635,13 @@ function HomeContent() {
         const perfB = computeFundPerformance(b, latestPrices).returnRate ?? -9999;
         return perfB - perfA;
       }
-      return 0; // 'latest' は Supabase の order(created_at) 順
+      return 0;
     });
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-28 relative">
-<header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 shadow-xs flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* モバイル用ドロワー開閉ボタン */}
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
@@ -667,21 +663,33 @@ function HomeContent() {
           </button>
         </div>
 
-        {/* スマホでは非表示（右下のフローティングボタンを使用）、PC画面（sm以上）でのみ表示 */}
-        <button
-          type="button"
-          onClick={() => router.push('/create')}
-          className="hidden sm:flex text-xs bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-full transition shadow-xs cursor-pointer items-center gap-1 whitespace-nowrap shrink-0"
-        >
-          <span>＋</span>
-          <span>ファンドを作成する</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 📝 お客様アンケート */}
+          <a
+            href="https://docs.google.com/forms/d/e/1FAIpQLScOBq_NVmGd5JBdc_KKNvTb6JI4wSBX7FRjhId5XIVzKZGHJw/viewform?usp=dialog"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-bold text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-full transition flex items-center gap-1 shrink-0"
+            title="ご意見・アンケート"
+          >
+            <span>📝</span>
+            <span className="hidden sm:inline">アンケート</span>
+          </a>
+
+          {/* PC表示時のみ表示するファンド作成ボタン */}
+          <button
+            type="button"
+            onClick={() => router.push('/create')}
+            className="hidden sm:flex text-xs bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-full transition shadow-xs cursor-pointer items-center gap-1 whitespace-nowrap shrink-0"
+          >
+            <span>＋</span>
+            <span>ファンドを作成する</span>
+          </button>
+        </div>
       </header>
 
       <div className="max-w-6xl mx-auto px-4 pt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* ========================================================= */}
-        {/* 左側：サイドバー（PCは常時表示、スマホはぶわっとドロワー表示） */}
-        {/* ========================================================= */}
+        {/* 左側：サイドバー */}
         <aside
           className={`fixed inset-y-0 left-0 z-50 w-80 bg-white p-5 shadow-2xl border-r border-slate-200 overflow-y-auto transition-transform duration-300 ease-out lg:static lg:block lg:w-auto lg:p-0 lg:shadow-none lg:border-none lg:z-auto lg:col-span-4 ${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -702,7 +710,7 @@ function HomeContent() {
           </div>
 
           <div className="space-y-6">
-            {/* 📈 上昇率（リターン）ランキング */}
+            {/* 上昇率ランキング */}
             <div className="bg-white rounded-3xl p-4 lg:p-5 border border-slate-200/80 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
@@ -749,7 +757,7 @@ function HomeContent() {
               )}
             </div>
 
-            {/* 💰 予算・価格別フィルター */}
+            {/* 予算別フィルター */}
             <div className="bg-white rounded-3xl p-4 lg:p-5 border border-slate-200/80 shadow-xs space-y-3">
               <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
                 <span>💰</span>
@@ -778,10 +786,29 @@ function HomeContent() {
                 })}
               </div>
             </div>
+
+            {/* 📝 お客様アンケート（サイドバー内） */}
+            <div className="bg-indigo-50/60 rounded-3xl p-4 border border-indigo-100 space-y-2">
+              <h3 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                <span>📝</span>
+                <span>ご意見・ご要望</span>
+              </h3>
+              <p className="text-[11px] text-indigo-800/80 leading-relaxed">
+                サービス向上のため、アンケートへのご協力をお願いいたします！
+              </p>
+              <a
+                href="https://docs.google.com/forms/d/e/1FAIpQLScOBq_NVmGd5JBdc_KKNvTb6JI4wSBX7FRjhId5XIVzKZGHJw/viewform?usp=dialog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-xs text-center"
+              >
+                アンケートに回答する ↗
+              </a>
+            </div>
           </div>
         </aside>
 
-        {/* ドロワーの背景マスク（スマホ用） */}
+        {/* ドロワーの背景マスク */}
         {isSidebarOpen && (
           <div
             onClick={() => setIsSidebarOpen(false)}
@@ -789,9 +816,7 @@ function HomeContent() {
           />
         )}
 
-        {/* ========================================================= */}
-        {/* 右側：メインタイムライン */}
-        {/* ========================================================= */}
+        {/* メインタイムライン */}
         <main className="lg:col-span-8 space-y-5">
           <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-5 text-white shadow-md space-y-2">
             <span className="bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-xs">
@@ -803,7 +828,7 @@ function HomeContent() {
             </p>
           </div>
 
-          {/* 🔍 検索バー */}
+          {/* 検索バー */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -828,7 +853,7 @@ function HomeContent() {
             )}
           </div>
 
-          {/* 並び替えソート ＆ グラフ切り替えタブ */}
+          {/* ソート ＆ グラフ切り替えタブ */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-200 text-xs font-bold shadow-2xs">
               <button
