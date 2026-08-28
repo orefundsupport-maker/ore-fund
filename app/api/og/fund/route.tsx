@@ -1,8 +1,10 @@
 // app/api/og/fund/route.tsx
 import { ImageResponse } from 'next/og';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { supabase } from '@/app/lib/supabase';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 const DEFAULT_COLORS = [
   '#2563EB', '#EA580C', '#16A34A', '#9333EA',
@@ -11,9 +13,9 @@ const DEFAULT_COLORS = [
 ];
 
 async function loadJapaneseFont(): Promise<ArrayBuffer> {
-  const fontUrl = new URL('./fonts/NotoSansJP-Bold.ttf', import.meta.url);
-  const res = await fetch(fontUrl);
-  return res.arrayBuffer();
+  const filePath = path.join(process.cwd(), 'app/api/og/fund/fonts/NotoSansJP-Bold.ttf');
+  const buffer = await fs.readFile(filePath);
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
 const fontDataPromise = loadJapaneseFont();
