@@ -244,7 +244,10 @@ function CreateFundContent() {
       }
     }
 
-    newItems[index][field] = processedValue;
+     newItems[index] = {
+      ...newItems[index],
+      [field]: processedValue,
+    };
     setItems(newItems);
   };
 
