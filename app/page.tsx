@@ -39,6 +39,18 @@ const BUDGET_FILTERS = [
 
 type SortMode = 'latest' | 'return_desc';
 
+function formatCreatedAt(dateString?: string): string {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+}
+
 function getDonutSlicePath(
   cx: number, cy: number, rOuter: number, rInner: number,
   startAngleDeg: number, endAngleDeg: number
@@ -176,17 +188,24 @@ function FundCard({
           <h4 className="font-extrabold text-slate-900 text-base leading-snug truncate group-hover:text-indigo-600 transition-colors">
             {fund.title}
           </h4>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAuthorClick(fund.author);
-            }}
-            className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-bold transition cursor-pointer"
-            title={`${fund.author}さんのファンドを絞り込み`}
-          >
-            @{fund.author}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAuthorClick(fund.author);
+              }}
+              className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-bold transition cursor-pointer"
+              title={`${fund.author}さんのファンドを絞り込み`}
+            >
+              @{fund.author}
+            </button>
+            {fund.created_at && (
+              <span className="text-[10px] text-slate-400 font-medium">
+                🕒 {formatCreatedAt(fund.created_at)}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col items-end gap-1 shrink-0">
@@ -676,7 +695,6 @@ function HomeContent() {
             <span className="hidden sm:inline">アンケート</span>
           </a>
 
-          {/* PC表示時のみ表示するファンド作成ボタン */}
           <button
             type="button"
             onClick={() => router.push('/create')}
@@ -787,7 +805,7 @@ function HomeContent() {
               </div>
             </div>
 
-            {/* 📝 お客様アンケート（サイドバー内） */}
+            {/* 📝 お客様アンケート */}
             <div className="bg-indigo-50/60 rounded-3xl p-4 border border-indigo-100 space-y-2">
               <h3 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
                 <span>📝</span>
@@ -831,7 +849,7 @@ function HomeContent() {
           {/* 検索バー */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 fill-none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>

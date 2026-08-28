@@ -33,20 +33,10 @@ type Comment = {
   text: string;
 };
 
-// 視認性が高く、隣り合っても被りにくい12色のカラーパレット
 const DEFAULT_COLORS = [
-  '#2563EB', // ブルー
-  '#EA580C', // オレンジ
-  '#16A34A', // グリーン
-  '#9333EA', // パープル
-  '#DC2626', // レッド
-  '#CA8A04', // イエローゴールド
-  '#DB2777', // ピンク
-  '#0D9488', // ティール
-  '#4F46E5', // インディゴ
-  '#65A30D', // ライム
-  '#C026D3', // マゼンタ
-  '#B45309', // アンバー
+  '#2563EB', '#EA580C', '#16A34A', '#9333EA',
+  '#DC2626', '#CA8A04', '#DB2777', '#0D9488',
+  '#4F46E5', '#65A30D', '#C026D3', '#B45309',
 ];
 
 const OHTANI_FUND_EXAMPLE: Fund = {
@@ -78,26 +68,19 @@ function formatDate(dateString?: string): string {
 }
 
 function getDonutSlicePath(
-  cx: number,
-  cy: number,
-  rOuter: number,
-  rInner: number,
-  startAngleDeg: number,
-  endAngleDeg: number
+  cx: number, cy: number, rOuter: number, rInner: number,
+  startAngleDeg: number, endAngleDeg: number
 ) {
   const startRad = ((startAngleDeg - 90) * Math.PI) / 180;
   const endRad = ((endAngleDeg - 90) * Math.PI) / 180;
-
   const x1Outer = cx + rOuter * Math.cos(startRad);
   const y1Outer = cy + rOuter * Math.sin(startRad);
   const x2Outer = cx + rOuter * Math.cos(endRad);
   const y2Outer = cy + rOuter * Math.sin(endRad);
-
   const x1Inner = cx + rInner * Math.cos(endRad);
   const y1Inner = cy + rInner * Math.sin(endRad);
   const x2Inner = cx + rInner * Math.cos(startRad);
   const y2Inner = cy + rInner * Math.sin(startRad);
-
   const largeArcFlag = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
 
   return [
@@ -132,22 +115,14 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   useEffect(() => {
     try {
       const saved = localStorage.getItem('reacted_funds');
-      if (saved) {
-        setReactedFunds(JSON.parse(saved));
-      }
+      if (saved) setReactedFunds(JSON.parse(saved));
     } catch {
       // ignore
     }
 
     async function fetchFund() {
       setLoading(true);
-
-      const { data, error } = await supabase
-        .from('funds')
-        .select('*')
-        .eq('id', fundId)
-        .single();
-
+      const { data, error } = await supabase.from('funds').select('*').eq('id', fundId).single();
       if (error || !data) {
         setFund(OHTANI_FUND_EXAMPLE);
       } else {
@@ -156,9 +131,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
       setLoading(false);
     }
 
-    if (fundId) {
-      fetchFund();
-    }
+    if (fundId) fetchFund();
   }, [fundId]);
 
   useEffect(() => {
@@ -194,9 +167,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
           const res = await fetch(`/api/stocks/quote?code=${code}`);
           if (res.ok) {
             const data = await res.json();
-            if (data.closePrice) {
-              return { code, price: data.closePrice };
-            }
+            if (data.closePrice) return { code, price: data.closePrice };
           }
         } catch {
           // ignore
@@ -227,14 +198,8 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
     const newCount = (fund.funny_count || 0) + 1;
     setFund({ ...fund, funny_count: newCount });
 
-    const { error } = await supabase
-      .from('funds')
-      .update({ funny_count: newCount })
-      .eq('id', fund.id);
-
-    if (error) {
-      console.error('更新エラー:', error);
-    }
+    const { error } = await supabase.from('funds').update({ funny_count: newCount }).eq('id', fund.id);
+    if (error) console.error('更新エラー:', error);
   };
 
   const handleAddComment = (e: React.FormEvent) => {
@@ -249,9 +214,7 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
     const adminKey = prompt('管理者パスワードを入力してください:');
     if (!adminKey) return;
 
-    if (!confirm('【警告】本当にこのファンドを削除しますか？この操作は取り消せません。')) {
-      return;
-    }
+    if (!confirm('【警告】本当にこのファンドを削除しますか？この操作は取り消せません。')) return;
 
     setIsDeleting(true);
     try {
@@ -351,7 +314,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
     ? Math.floor(Number(fund.total_amount))
     : Math.floor(formattedItems.reduce((s, i) => s + (i.baseAmount || 0), 0));
 
-  // 現在の合計金額
   const hasCurrentPrices = formattedItems.some((i) => i.currentAmount !== undefined);
   const totalCurrentAmount = hasCurrentPrices
     ? formattedItems.reduce((s, i) => s + (i.currentAmount !== undefined ? i.currentAmount : i.baseAmount), 0)
@@ -372,7 +334,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
     };
   });
 
-  // 全体トータルリターンの計算
   let totalWeightedReturn: number | null = null;
   if (totalCurrentAmount !== undefined && totalBaseAmount > 0) {
     totalWeightedReturn = parseFloat((((totalCurrentAmount - totalBaseAmount) / totalBaseAmount) * 100).toFixed(2));
@@ -395,23 +356,17 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
   const formattedCreatedDate = formatDate(fund.created_at);
   const hasReacted = reactedFunds.includes(fund.id);
 
-  // X（Twitter）共有処理
   const handleShareToX = () => {
     if (!fund) return;
-
     const descText = fund.description?.trim()
       ? `💬こだわり:\n${fund.description.length > 70 ? fund.description.slice(0, 67) + '...' : fund.description}\n\n`
       : '';
-
     const returnText = totalWeightedReturn !== null
       ? `📈 成績: ${totalWeightedReturn >= 0 ? '+' : ''}${totalWeightedReturn}% (現在: ¥${totalCurrentAmount?.toLocaleString() || totalBaseAmount.toLocaleString()})\n`
       : '';
-
     const text = `📊「${fund.title}」\n作成者: @${fund.author}\n${returnText}\n${descText}この構成で勝てると思う？あなたならどう組む？\n#俺ファンド #株式投資 #ポートフォリオ`;
     const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://ore-fund.vercel.app/fund/${fund.id}`;
-
-    const twitterIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
-    window.open(twitterIntent, '_blank', 'noopener,noreferrer');
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleForkFund = () => {
@@ -430,14 +385,30 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
           <span className="text-xl">📊</span>
           <h1 className="text-base font-black text-slate-900 tracking-tight">俺ファンド</h1>
         </button>
-        <button
-          type="button"
-          onClick={() => router.push('/create')}
-          className="text-xs bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-full transition shadow-xs cursor-pointer flex items-center gap-1"
-        >
-          <span>＋</span>
-          <span>ファンドを作成する</span>
-        </button>
+
+        <div className="flex items-center gap-2">
+          {/* 📝 お客様アンケート */}
+          <a
+            href="https://docs.google.com/forms/d/e/1FAIpQLScOBq_NVmGd5JBdc_KKNvTb6JI4wSBX7FRjhId5XIVzKZGHJw/viewform?usp=dialog"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-bold text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-full transition flex items-center gap-1 shrink-0"
+            title="ご意見・アンケート"
+          >
+            <span>📝</span>
+            <span className="hidden sm:inline">アンケート</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={() => router.push('/create')}
+            className="text-xs bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-full transition shadow-xs cursor-pointer flex items-center gap-1"
+          >
+            <span>＋</span>
+            <span className="hidden sm:inline">ファンドを作成する</span>
+            <span className="sm:hidden">作成</span>
+          </button>
+        </div>
       </header>
 
       <main className="max-w-xl mx-auto px-4 pt-6 space-y-6">
@@ -458,7 +429,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
 
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
-                {/* トータルリターンバッジ */}
                 {totalWeightedReturn !== null ? (
                   <span
                     className={`text-xs font-black px-2.5 py-1 rounded-xl border flex items-center gap-1 shadow-2xs ${
@@ -488,7 +458,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                 ) : null}
               </div>
 
-              {/* 当時合計金額 */}
               {totalCurrentAmount !== undefined && totalBaseAmount > 0 && (
                 <span className="text-[10px] text-slate-400 font-medium">
                   当時合計: ¥{totalBaseAmount.toLocaleString()}
@@ -677,7 +646,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
                           <span className={`font-medium ${isHovered ? 'text-indigo-950 font-bold' : 'text-slate-800'}`}>
                             {item.name}
                           </span>
-                          {/* 個別騰落率バッジ */}
                           {item.changeRate !== null && item.changeRate !== undefined && (
                             <span
                               className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
@@ -717,8 +685,26 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          <div className="pt-2 space-y-2.5">
+          {/* 1. 💡 納得ボタン（件数なし・一番上） */}
+          <div className="pt-3 flex justify-start items-center border-t border-slate-100">
             <button
+              type="button"
+              onClick={handleFunnyClick}
+              disabled={hasReacted}
+              className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-full transition cursor-pointer ${
+                hasReacted
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95'
+              }`}
+            >
+              <span>{hasReacted ? '💡 納得済' : '💡 納得'}</span>
+            </button>
+          </div>
+
+          {/* 2. ポスト ＆ 3. アレンジ作成ボタン（納得ボタンの下） */}
+          <div className="space-y-2.5 pt-2">
+            <button
+              type="button"
               onClick={handleShareToX}
               className="w-full bg-black hover:bg-slate-900 text-white font-bold py-3.5 px-4 rounded-2xl shadow transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
             >
@@ -734,20 +720,6 @@ export default function FundDetailContent({ params }: { params: Promise<{ id: st
               className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-3 px-4 rounded-2xl border border-indigo-200/80 transition flex items-center justify-center gap-2 active:scale-98 cursor-pointer text-xs"
             >
               <span>🍴 この構成をアレンジして作成（コピー）</span>
-            </button>
-          </div>
-
-          <div className="pt-2 flex justify-start items-center border-t border-slate-100">
-            <button
-              onClick={handleFunnyClick}
-              disabled={hasReacted}
-              className={`flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-full transition cursor-pointer ${
-                hasReacted
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  : 'text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95'
-              }`}
-            >
-              <span>{hasReacted ? '💡 納得済' : '💡 納得'}</span>
             </button>
           </div>
         </article>
