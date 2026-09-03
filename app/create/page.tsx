@@ -11,24 +11,14 @@ type FundItem = {
   price: string;
   shares: string;
   color: string;
-  isAutoPrice?: boolean; // 公式株価がセットされたかどうかのフラグ
-  isLoadingPrice?: boolean; // 株価取得中のローディングフラグ
+  isAutoPrice?: boolean;
+  isLoadingPrice?: boolean;
 };
 
-// 視認性が高く、隣り合っても被りにくい12色のカラーパレット
 const DEFAULT_COLORS = [
-  '#2563EB', // ブルー
-  '#EA580C', // オレンジ
-  '#16A34A', // グリーン
-  '#9333EA', // パープル
-  '#DC2626', // レッド
-  '#CA8A04', // イエローゴールド
-  '#DB2777', // ピンク
-  '#0D9488', // ティール
-  '#4F46E5', // インディゴ
-  '#65A30D', // ライム
-  '#C026D3', // マゼンタ
-  '#B45309', // アンバー
+  '#2563EB', '#EA580C', '#16A34A', '#9333EA',
+  '#DC2626', '#CA8A04', '#DB2777', '#0D9488',
+  '#4F46E5', '#65A30D', '#C026D3', '#B45309',
 ];
 
 const RANDOM_AUTHORS = [
@@ -188,7 +178,7 @@ function CreateFundContent() {
     if (hoveredIndex === index) setHoveredIndex(null);
   };
 
-  // 銘柄名・コード入力時に公式株価を自動取得する関数
+  // 銘柄名・コード入力時に公式株価と名前を自動取得する関数
   const fetchStockPrice = async (index: number, code: string) => {
     setItems((prev) => {
       const updated = [...prev];
@@ -197,21 +187,25 @@ function CreateFundContent() {
     });
 
     try {
-      const res = await fetch(`/api/stocks/quote?code=${code}`);
+      const res = await fetch(`/api/stocks/quote?code=${encodeURIComponent(code)}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.closePrice) {
-          setItems((prev) => {
-            const updated = [...prev];
-            if (updated[index]) {
+        setItems((prev) => {
+          const updated = [...prev];
+          if (updated[index]) {
+            if (data.closePrice) {
               updated[index].price = String(data.closePrice);
               updated[index].isAutoPrice = true;
-              updated[index].isLoadingPrice = false;
             }
-            return updated;
-          });
-          return;
-        }
+            // 辞書未登録の銘柄（地方株等）でも、APIから返ってきた名前で自動補完
+            if (data.name && (!updated[index].name || updated[index].name === code)) {
+              updated[index].name = `${data.name} (${code})`;
+            }
+            updated[index].isLoadingPrice = false;
+          }
+          return updated;
+        });
+        return;
       }
     } catch (e) {
       console.error('株価取得失敗:', e);
@@ -230,21 +224,36 @@ function CreateFundContent() {
 
     if (field === 'name') {
       const codeTrimmed = value.trim();
-      const matched = getCompanyNameByCode(codeTrimmed);
+
+      // 全角英数字を半角に自動変換（例: ３０６６ -> 3066, １３０ａ -> 130a）
+      const normalized = codeTrimmed.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) =>
+        String.fromCharCode(s.charCodeAt(0) - 0xfee0)
+      );
+
+      const matched = getCompanyNameByCode(normalized) || getCompanyNameByCode(codeTrimmed);
+
       if (matched) {
-        processedValue = `${matched} (${codeTrimmed})`;
-        newItems[index].code = codeTrimmed;
-        fetchStockPrice(index, codeTrimmed);
+        // 辞書にある銘柄
+        processedValue = `${matched} (${normalized.toUpperCase()})`;
+        newItems[index].code = normalized.toUpperCase();
+        fetchStockPrice(index, normalized.toUpperCase());
       } else {
-        const matchDigits = codeTrimmed.match(/\b\d{4}\b/);
-        if (matchDigits) {
-          newItems[index].code = matchDigits[0];
-          fetchStockPrice(index, matchDigits[0]);
+        // 4桁コード（数字3桁＋英数字1桁、小文字・全角入力に対応）
+        const matchCode = normalized.match(/([0-9]{3}[0-9A-Za-z])/);
+        if (matchCode) {
+          const upperCode = matchCode[1].toUpperCase();
+          newItems[index].code = upperCode;
+          fetchStockPrice(index, upperCode);
+        } else {
+          // 入力欄を消去したりコードが含まれなくなった場合は、株価ロックとコードを解除して手入力可能に戻す
+          newItems[index].code = '';
+          newItems[index].isAutoPrice = false;
+          newItems[index].price = '';
         }
       }
     }
 
-     newItems[index] = {
+    newItems[index] = {
       ...newItems[index],
       [field]: processedValue,
     };
@@ -285,7 +294,6 @@ function CreateFundContent() {
     setIsSubmitting(true);
     const finalAuthor = previewAuthor || '名無し投資家';
 
-    // 確定前日終値を base_price としてSupabaseに保存
     const formattedItemsToSave = validItems.map((item) => ({
       name: item.name,
       code: item.code,
@@ -431,7 +439,7 @@ function CreateFundContent() {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-sm font-bold text-slate-700">📊 組み入れ銘柄</h2>
-                <span className="text-[10px] text-slate-400">※ 証券コード4桁（例: 7203）入力で会社名と前日終値を自動取得</span>
+                <span className="text-[10px] text-slate-400">※ 証券コード4桁（例: 7203, 130A, 3066）入力で会社名と前日終値を自動取得</span>
               </div>
               <span className="text-xs font-bold text-indigo-600">
                 合計: ¥{totalAmount.toLocaleString()}
@@ -463,7 +471,7 @@ function CreateFundContent() {
                         />
                         <input
                           type="text"
-                          placeholder="銘柄名 または 証券コード（例: 7203, トヨタ自動車）"
+                          placeholder="銘柄名 または 証券コード（例: 7203, 130A, 3066, トヨタ自動車）"
                           value={item.name}
                           onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
                           className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"

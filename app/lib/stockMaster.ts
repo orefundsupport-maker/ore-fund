@@ -2,6 +2,7 @@
 // 東証上場銘柄マスター（全4437銘柄 / 自動生成）
 
 export const STOCK_MASTER: Record<string, string> = {
+  "3066": "ＪＢイレブン",
   "1301": "極洋",
   "1305": "ｉＦｒｅｅＥＴＦ　ＴＯＰＩＸ（年１回決算型）",
   "1306": "ＮＥＸＴ　ＦＵＮＤＳ　ＴＯＰＩＸ連動型上場投信",
@@ -4442,14 +4443,18 @@ export const STOCK_MASTER: Record<string, string> = {
 };
 
 /**
- * 証券コード（半角・全角対応）から会社名を取得
+ * 証券コード（半角・全角・英大文字小文字対応）から会社名を取得
  */
 export function getCompanyNameByCode(input: string): string | null {
+  if (!input) return null;
   const trimmed = input.trim();
-  const normalized = trimmed.replace(/[０-９]/g, (s) =>
-    String.fromCharCode(s.charCodeAt(0) - 0xfee0)
-  );
-  if (/^\d{4}$/.test(normalized) || /^[0-9A-Za-z]{4}$/.test(normalized)) {
+  const normalized = trimmed
+    .replace(/[０-９ａ-ｚＡ-Ｚ]/g, (s) =>
+      String.fromCharCode(s.charCodeAt(0) - 0xfee0)
+    )
+    .toUpperCase();
+
+  if (/^[0-9A-Z]{4}$/.test(normalized)) {
     return STOCK_MASTER[normalized] || null;
   }
   return null;
